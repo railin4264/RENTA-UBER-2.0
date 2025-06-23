@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   FileText,
   Download,
@@ -6,7 +6,6 @@ import {
   Plus,
   Search,
   Calendar,
-  User,
   Car,
   Edit2,
   Trash2,
@@ -16,14 +15,36 @@ import {
   AlertCircle
 } from 'lucide-react';
 
+interface Status {
+  id: string;
+  name: string;
+  color?: string;
+}
+
+interface Driver {
+  id: string;
+  firstName: string;
+  lastName: string;
+  status?: Status;
+}
+
+interface Vehicle {
+  id: string;
+  plate: string;
+  model?: string;
+  status?: Status;
+}
+
 interface Contract {
   id: string;
   driverId: string;
   driverName: string;
-  vehiclePlate: string;
+  vehicleId: string;
+  vehiclePlate?: string;
   startDate: string;
   endDate?: string;
-  status: 'active' | 'expired' | 'terminated';
+  status?: Status;
+  statusId?: string;
   type: 'rental' | 'employment';
   createdAt: string;
 }
@@ -43,43 +64,20 @@ export default function ContractManagement() {
   const [activeTab, setActiveTab] = useState<'contracts' | 'receipts'>('contracts');
   const [searchTerm, setSearchTerm] = useState('');
   const [showContractForm, setShowContractForm] = useState(false);
-  const [showReceiptForm, setShowReceiptForm] = useState(false);
+  const [contractStatuses, setContractStatuses] = useState<Status[]>([]);
+  const [contracts, setContracts] = useState<Contract[]>([]);
+  const [drivers, setDrivers] = useState<Driver[]>([]);
+  const [vehicles, setVehicles] = useState<Vehicle[]>([]);
+  const [formData, setFormData] = useState<Partial<Contract>>({
+    driverId: '',
+    vehicleId: '',
+    startDate: '',
+    endDate: '',
+    statusId: '',
+    type: 'rental',
+  });
 
-  // Mock data
-  const contracts: Contract[] = [
-    {
-      id: '1',
-      driverId: '1',
-      driverName: 'Carlos Martínez',
-      vehiclePlate: 'ABC-123',
-      startDate: '2024-01-15',
-      status: 'active',
-      type: 'rental',
-      createdAt: '2024-01-15T00:00:00Z'
-    },
-    {
-      id: '2',
-      driverId: '2',
-      driverName: 'Ana López',
-      vehiclePlate: 'DEF-456',
-      startDate: '2024-02-01',
-      status: 'active',
-      type: 'rental',
-      createdAt: '2024-02-01T00:00:00Z'
-    },
-    {
-      id: '3',
-      driverId: '3',
-      driverName: 'Roberto Silva',
-      vehiclePlate: 'GHI-789',
-      startDate: '2023-12-01',
-      endDate: '2024-12-31',
-      status: 'terminated',
-      type: 'rental',
-      createdAt: '2023-12-01T00:00:00Z'
-    }
-  ];
-
+  // Mock receipts (puedes reemplazar por fetch real)
   const receipts: Receipt[] = [
     {
       id: '1',
@@ -90,32 +88,40 @@ export default function ContractManagement() {
       type: 'payment',
       description: 'Pago semanal - Vehículo ABC-123',
       createdAt: '2025-01-10T00:00:00Z'
-    },
-    {
-      id: '2',
-      driverId: '2',
-      driverName: 'Ana López',
-      amount: 1600,
-      date: '2025-01-12',
-      type: 'payment',
-      description: 'Pago semanal - Vehículo DEF-456',
-      createdAt: '2025-01-12T00:00:00Z'
-    },
-    {
-      id: '3',
-      driverId: '1',
-      driverName: 'Carlos Martínez',
-      amount: 2500,
-      date: '2025-01-08',
-      type: 'expense',
-      description: 'Mantenimiento preventivo - ABC-123',
-      createdAt: '2025-01-08T00:00:00Z'
     }
   ];
 
+  // Cargar statuses de contratos desde el backend
+  useEffect(() => {
+    fetch('http://localhost:3002/api/statuses/contract')
+      .then(res => res.json())
+      .then(setContractStatuses);
+  }, []);
+
+  // Cargar contratos desde el backend
+  useEffect(() => {
+    fetch('http://localhost:3002/api/contracts')
+      .then(res => res.json())
+      .then(setContracts);
+  }, []);
+
+  // Cargar choferes desde el backend
+  useEffect(() => {
+    fetch('http://localhost:3002/api/drivers')
+      .then(res => res.json())
+      .then(setDrivers);
+  }, []);
+
+  // Cargar vehículos desde el backend
+  useEffect(() => {
+    fetch('http://localhost:3002/api/vehicles')
+      .then(res => res.json())
+      .then(setVehicles);
+  }, []);
+
   const filteredContracts = contracts.filter(contract =>
-    contract.driverName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    contract.vehiclePlate.toLowerCase().includes(searchTerm.toLowerCase())
+    (contract.driverName || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+    (contract.vehiclePlate || '').toLowerCase().includes(searchTerm.toLowerCase())
   );
 
   const filteredReceipts = receipts.filter(receipt =>
@@ -123,14 +129,71 @@ export default function ContractManagement() {
     receipt.description.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
-  const generateContract = (contractId: string) => {
-    console.log(`Generating contract for ID: ${contractId}`);
-    // Mock contract generation
+  // Acciones de contrato
+  const handleViewContract = (contractId: string) => {
+    alert(`Visualizar contrato: ${contractId}`);
+    // Aquí puedes abrir un modal o navegar a la vista de detalle
+  };
+
+  const handleDownloadContract = (contractId: string) => {
+    alert(`Descargar contrato: ${contractId}`);
+    // Aquí puedes implementar la descarga del PDF
+  };
+
+  const handleEditContract = (contractId: string) => {
+    alert(`Editar contrato: ${contractId}`);
+    // Aquí puedes abrir el formulario de edición
+  };
+
+  const handleDeleteContract = async (contractId: string) => {
+    if (window.confirm('¿Seguro que deseas eliminar este contrato?')) {
+      const res = await fetch(`http://localhost:3002/api/contracts/${contractId}`, {
+        method: 'DELETE'
+      });
+      if (res.ok) {
+        setContracts(prev => prev.filter(c => c.id !== contractId));
+      } else {
+        alert('Error al eliminar contrato');
+      }
+    }
   };
 
   const printReceipt = (receiptId: string) => {
-    console.log(`Printing receipt for ID: ${receiptId}`);
-    // Mock receipt printing
+    alert(`Imprimir recibo: ${receiptId}`);
+    // Aquí puedes implementar la impresión del recibo
+  };
+
+  // Manejar envío del formulario de contrato
+  const handleContractFormSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    // Buscar el nombre del chofer seleccionado
+    const selectedDriver = drivers.find(d => d.id === formData.driverId);
+    const selectedVehicle = vehicles.find(v => v.id === formData.vehicleId);
+    const payload = {
+      ...formData,
+      driverName: selectedDriver ? `${selectedDriver.firstName} ${selectedDriver.lastName}` : '',
+      vehiclePlate: selectedVehicle ? selectedVehicle.plate : '',
+    };
+    const res = await fetch('http://localhost:3002/api/contracts', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+    if (res.ok) {
+      const newContract = await res.json();
+      setContracts(prev => [...prev, newContract]);
+      setShowContractForm(false);
+      setFormData({
+        driverId: '',
+        vehicleId: '',
+        startDate: '',
+        endDate: '',
+        statusId: '',
+        type: 'rental',
+      });
+    } else {
+      alert('Error al crear contrato');
+    }
   };
 
   return (
@@ -148,15 +211,113 @@ export default function ContractManagement() {
             <Plus className="w-5 h-5" />
             <span>Nuevo Contrato</span>
           </button>
-          <button
-            onClick={() => setShowReceiptForm(true)}
-            className="flex items-center space-x-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
-          >
-            <Plus className="w-5 h-5" />
-            <span>Nuevo Recibo</span>
-          </button>
         </div>
       </div>
+
+      {/* Formulario para nuevo contrato */}
+      {showContractForm && (
+        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 mb-8">
+          <h2 className="text-xl font-semibold mb-4">Registrar Contrato</h2>
+          <form className="space-y-6" onSubmit={handleContractFormSubmit}>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Chofer *</label>
+                <select
+                  required
+                  value={formData.driverId || ''}
+                  onChange={e => setFormData({ ...formData, driverId: e.target.value })}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                >
+                  <option value="">Selecciona un chofer</option>
+                  {drivers.map(driver => (
+                    <option key={driver.id} value={driver.id}>
+                      {driver.firstName} {driver.lastName}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Vehículo *</label>
+                <select
+                  required
+                  value={formData.vehicleId || ''}
+                  onChange={e => setFormData({ ...formData, vehicleId: e.target.value })}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                >
+                  <option value="">Selecciona un vehículo</option>
+                  {vehicles.map(vehicle => (
+                    <option key={vehicle.id} value={vehicle.id}>
+                      {vehicle.plate} {vehicle.model ? `- ${vehicle.model}` : ''}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Fecha de inicio *</label>
+                <input
+                  type="date"
+                  required
+                  value={formData.startDate || ''}
+                  onChange={e => setFormData({ ...formData, startDate: e.target.value })}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Fecha de fin</label>
+                <input
+                  type="date"
+                  value={formData.endDate || ''}
+                  onChange={e => setFormData({ ...formData, endDate: e.target.value })}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Tipo de contrato *</label>
+                <select
+                  required
+                  value={formData.type || 'rental'}
+                  onChange={e => setFormData({ ...formData, type: e.target.value as 'rental' | 'employment' })}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                >
+                  <option value="rental">Renta</option>
+                  <option value="employment">Empleo</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Estado *</label>
+                <select
+                  required
+                  value={formData.statusId || ''}
+                  onChange={e => setFormData({ ...formData, statusId: e.target.value })}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                >
+                  <option value="">Selecciona un estado</option>
+                  {contractStatuses.map(status => (
+                    <option key={status.id} value={status.id}>
+                      {status.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+            <div className="flex space-x-4 mt-4">
+              <button
+                type="submit"
+                className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+              >
+                Guardar
+              </button>
+              <button
+                type="button"
+                onClick={() => setShowContractForm(false)}
+                className="px-6 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors"
+              >
+                Cancelar
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
 
       {/* Stats Cards */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
@@ -165,7 +326,7 @@ export default function ContractManagement() {
             <div>
               <p className="text-sm font-medium text-gray-600">Contratos Activos</p>
               <p className="text-2xl font-bold text-green-600">
-                {contracts.filter(c => c.status === 'active').length}
+                {contracts.filter(c => c.status?.name === 'Activo').length}
               </p>
             </div>
             <div className="w-12 h-12 bg-green-500 rounded-lg flex items-center justify-center">
@@ -178,7 +339,9 @@ export default function ContractManagement() {
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm font-medium text-gray-600">Por Vencer</p>
-              <p className="text-2xl font-bold text-yellow-600">2</p>
+              <p className="text-2xl font-bold text-yellow-600">
+                {contracts.filter(c => c.status?.name === 'Pendiente').length}
+              </p>
             </div>
             <div className="w-12 h-12 bg-yellow-500 rounded-lg flex items-center justify-center">
               <Clock className="w-6 h-6 text-white" />
@@ -191,7 +354,7 @@ export default function ContractManagement() {
             <div>
               <p className="text-sm font-medium text-gray-600">Vencidos</p>
               <p className="text-2xl font-bold text-red-600">
-                {contracts.filter(c => c.status === 'expired').length}
+                {contracts.filter(c => c.status?.name === 'Vencido' || c.status?.name === 'Finalizado').length}
               </p>
             </div>
             <div className="w-12 h-12 bg-red-500 rounded-lg flex items-center justify-center">
@@ -285,40 +448,42 @@ export default function ContractManagement() {
                       </div>
                     </div>
                     <div className="flex items-center space-x-4">
-                      <span className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium ${
-                        contract.status === 'active' ? 'bg-green-100 text-green-800' :
-                        contract.status === 'expired' ? 'bg-red-100 text-red-800' :
-                        'bg-gray-100 text-gray-800'
-                      }`}>
-                        {contract.status === 'active' ? 'Activo' :
-                         contract.status === 'expired' ? 'Vencido' : 'Terminado'}
+                      <span
+                        className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium"
+                        style={{
+                          backgroundColor: contract.status?.color || '#e5e7eb',
+                          color: contract.status?.color ? '#222' : '#555'
+                        }}
+                      >
+                        {contract.status?.name || 'Sin estado'}
                       </span>
                       <div className="flex space-x-2">
                         <button
-                          onClick={() => generateContract(contract.id)}
+                          onClick={() => handleViewContract(contract.id)}
                           className="p-2 text-blue-600 hover:text-blue-700 hover:bg-blue-50 rounded-lg transition-colors"
-                          title="Ver contrato"
+                          title="Visualizar contrato"
                         >
                           <Eye className="w-4 h-4" />
                         </button>
                         <button
-                          onClick={() => generateContract(contract.id)}
+                          onClick={() => handleDownloadContract(contract.id)}
                           className="p-2 text-green-600 hover:text-green-700 hover:bg-green-50 rounded-lg transition-colors"
                           title="Descargar contrato"
                         >
                           <Download className="w-4 h-4" />
                         </button>
                         <button
-                          onClick={() => generateContract(contract.id)}
-                          className="p-2 text-purple-600 hover:text-purple-700 hover:bg-purple-50 rounded-lg transition-colors"
-                          title="Imprimir contrato"
+                          onClick={() => handleEditContract(contract.id)}
+                          className="p-2 text-gray-600 hover:text-gray-700 hover:bg-gray-50 rounded-lg transition-colors"
+                          title="Editar contrato"
                         >
-                          <Printer className="w-4 h-4" />
-                        </button>
-                        <button className="p-2 text-gray-600 hover:text-gray-700 hover:bg-gray-50 rounded-lg transition-colors">
                           <Edit2 className="w-4 h-4" />
                         </button>
-                        <button className="p-2 text-red-600 hover:text-red-700 hover:bg-red-50 rounded-lg transition-colors">
+                        <button
+                          onClick={() => handleDeleteContract(contract.id)}
+                          className="p-2 text-red-600 hover:text-red-700 hover:bg-red-50 rounded-lg transition-colors"
+                          title="Borrar contrato"
+                        >
                           <Trash2 className="w-4 h-4" />
                         </button>
                       </div>

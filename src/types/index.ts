@@ -46,14 +46,12 @@ export interface Vehicle {
 
 export interface Expense {
   id: string;
-  vehicleId: string;
-  date: string;
-  place: string;
-  type: 'mechanical' | 'paint' | 'loss' | 'maintenance';
-  cost: number;
-  invoicePhoto?: string;
+  amount: number;
+  date: string; // ISO string
   description?: string;
-  createdAt: string;
+  driverId: string;
+  type?: 'mechanical' | 'paint' | 'loss' | 'maintenance'; // opcional
+  place?: string; // opcional
 }
 
 export interface Payment {

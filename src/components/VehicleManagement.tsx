@@ -1,22 +1,24 @@
-import React, { useState } from 'react';
-import { 
-  Plus, 
-  Search, 
-  Car, 
-  Calendar,
-  User,
-  Camera,
+import React, { useState, useEffect } from 'react';
+import {
+  Plus,
+  Search,
+  Car,
   Edit2,
   Trash2,
   AlertCircle,
   CheckCircle,
-  Eye
+  Eye,
+  Camera
 } from 'lucide-react';
 import type { Vehicle } from '../types';
+
+const API = 'http://localhost:3002';
 
 export default function VehicleManagement() {
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
   const [showForm, setShowForm] = useState(false);
+  const [showEditForm, setShowEditForm] = useState(false);
+  const [showDetails, setShowDetails] = useState<Vehicle | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [formData, setFormData] = useState({
     model: '',
@@ -24,20 +26,127 @@ export default function VehicleManagement() {
     color: '',
     plate: '',
     driverId: '',
+    photoFront: '',
+    photoRear: '',
+    photoLeft: '',
+    photoRight: '',
+    photoInterior: '',
+    photoEngine: '',
   });
+  const [editId, setEditId] = useState<string | null>(null);
+  const [preview, setPreview] = useState<{ [key: string]: string }>({});
 
-  const handleSubmit = (e: React.FormEvent) => {
+  useEffect(() => {
+    fetch(`${API}/api/vehicles`)
+      .then(res => res.json())
+      .then(data => setVehicles(data))
+      .catch(err => console.error('Error al cargar vehículos:', err));
+  }, []);
+
+  // Subida de fotos
+  const handlePhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>, field: string) => {
+    if (!e.target.files || !e.target.files[0]) return;
+    const file = e.target.files[0];
+    const data = new FormData();
+    data.append('photo', file);
+    try {
+      const res = await fetch(`${API}/api/upload`, {
+        method: 'POST',
+        body: data,
+      });
+      const result = await res.json();
+      setFormData(prev => ({ ...prev, [field]: result.filename }));
+      setPreview(prev => ({ ...prev, [field]: URL.createObjectURL(file) }));
+    } catch {
+      alert('Error subiendo la foto');
+    }
+  };
+
+  // Crear vehículo
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    const newVehicle: Vehicle = {
-      id: Date.now().toString(),
-      ...formData,
-      photos: [],
-      currentConditionPhotos: [],
-      createdAt: new Date().toISOString(),
-    };
-    setVehicles([...vehicles, newVehicle]);
-    setShowForm(false);
-    resetForm();
+    try {
+      const res = await fetch(`${API}/api/vehicles`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(formData),
+      });
+      if (!res.ok) {
+        const error = await res.json();
+        alert(error.message || 'Error al registrar vehículo');
+        return;
+      }
+      const newVehicle = await res.json();
+      setVehicles([...vehicles, newVehicle]);
+      setShowForm(false);
+      resetForm();
+    } catch (err) {
+      alert('Error al registrar vehículo');
+    }
+  };
+
+  // Editar vehículo
+  const handleEdit = (vehicle: Vehicle) => {
+    setEditId(vehicle.id);
+    setFormData({
+      model: vehicle.model,
+      year: vehicle.year,
+      color: vehicle.color,
+      plate: vehicle.plate,
+      driverId: vehicle.driverId || '',
+      photoFront: vehicle.photoFront || '',
+      photoRear: vehicle.photoRear || '',
+      photoLeft: vehicle.photoLeft || '',
+      photoRight: vehicle.photoRight || '',
+      photoInterior: vehicle.photoInterior || '',
+      photoEngine: vehicle.photoEngine || '',
+    });
+    setPreview({});
+    setShowEditForm(true);
+  };
+
+  const handleUpdate = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editId) return;
+    try {
+      const res = await fetch(`${API}/api/vehicles/${editId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(formData),
+      });
+      if (!res.ok) {
+        const error = await res.json();
+        alert(error.message || 'Error al actualizar vehículo');
+        return;
+      }
+      const updatedVehicle = await res.json();
+      setVehicles(vehicles.map(v => v.id === editId ? updatedVehicle : v));
+      setShowEditForm(false);
+      setEditId(null);
+      resetForm();
+    } catch (err) {
+      alert('Error al actualizar vehículo');
+    }
+  };
+
+  // Eliminar vehículo
+  const handleDelete = async (id: string) => {
+    if (!window.confirm('¿Seguro que deseas eliminar este vehículo?')) return;
+    try {
+      const res = await fetch(`${API}/api/vehicles/${id}`, { method: 'DELETE' });
+      if (!res.ok) {
+        alert('Error al eliminar vehículo');
+        return;
+      }
+      setVehicles(vehicles.filter(v => v.id !== id));
+    } catch {
+      alert('Error al eliminar vehículo');
+    }
+  };
+
+  // Visualizar detalles
+  const handleView = (vehicle: Vehicle) => {
+    setShowDetails(vehicle);
   };
 
   const resetForm = () => {
@@ -47,137 +156,315 @@ export default function VehicleManagement() {
       color: '',
       plate: '',
       driverId: '',
+      photoFront: '',
+      photoRear: '',
+      photoLeft: '',
+      photoRight: '',
+      photoInterior: '',
+      photoEngine: '',
     });
+    setPreview({});
   };
 
   const filteredVehicles = vehicles.filter(vehicle =>
     vehicle.model.toLowerCase().includes(searchTerm.toLowerCase()) ||
     vehicle.plate.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    vehicle.color.toLowerCase().includes(searchTerm.toLowerCase())
+    (vehicle.color || '').toLowerCase().includes(searchTerm.toLowerCase())
   );
 
-  if (showForm) {
+  // Formulario de registro y edición (comparten diseño)
+  const renderForm = (isEdit = false) => (
+    <div className="space-y-8">
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-3xl font-bold text-gray-900">{isEdit ? 'Editar Vehículo' : 'Registrar Vehículo'}</h1>
+          <p className="text-gray-600 mt-1">{isEdit ? 'Modifica los datos y fotos del vehículo' : 'Complete todos los datos y fotos del vehículo'}</p>
+        </div>
+        <button
+          onClick={() => { isEdit ? (setShowEditForm(false), setEditId(null)) : setShowForm(false); resetForm(); }}
+          className="px-4 py-2 text-gray-600 hover:text-gray-900 transition-colors"
+        >
+          Cancelar
+        </button>
+      </div>
+
+      <form onSubmit={isEdit ? handleUpdate : handleSubmit} className="space-y-8">
+        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+          <h3 className="text-xl font-semibold text-gray-900 mb-6 flex items-center">
+            <Car className="w-5 h-5 mr-2" />
+            Datos del Vehículo
+          </h3>
+          
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Modelo *
+              </label>
+              <input
+                type="text"
+                required
+                value={formData.model}
+                onChange={(e) => setFormData({...formData, model: e.target.value})}
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                placeholder="Ej: Toyota Corolla"
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Año *
+              </label>
+              <input
+                type="number"
+                required
+                min="1990"
+                max={new Date().getFullYear() + 1}
+                value={formData.year}
+                onChange={(e) => setFormData({...formData, year: parseInt(e.target.value)})}
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Color *
+              </label>
+              <input
+                type="text"
+                required
+                value={formData.color}
+                onChange={(e) => setFormData({...formData, color: e.target.value})}
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                placeholder="Ej: Blanco"
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Placa *
+              </label>
+              <input
+                type="text"
+                required
+                value={formData.plate}
+                onChange={(e) => setFormData({...formData, plate: e.target.value.toUpperCase()})}
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                placeholder="Ej: ABC-123"
+              />
+            </div>
+          </div>
+
+          {/* Fotos en cuadrícula */}
+          <div>
+            <h3 className="text-lg font-semibold mb-4 mt-8">Fotos del Vehículo</h3>
+            <div className="grid grid-cols-3 gap-6">
+              {/* Frontal */}
+              <div className="border-2 border-dashed rounded-lg flex flex-col items-center justify-center py-4">
+                <label className="flex flex-col items-center cursor-pointer">
+                  <Camera className="w-8 h-8 text-gray-400 mb-2" />
+                  <span className="font-medium">Frontal</span>
+                  <span className="text-xs text-blue-600 mt-1">Subir Foto</span>
+                  <input type="file" accept="image/*" className="hidden"
+                    onChange={e => handlePhotoUpload(e, 'photoFront')}
+                  />
+                  {preview.photoFront || formData.photoFront ? (
+                    <img src={preview.photoFront || `${API}/uploads/${formData.photoFront}`} alt="Frontal" className="mt-2 w-24 h-16 object-cover rounded border" />
+                  ) : null}
+                </label>
+              </div>
+              {/* Trasera */}
+              <div className="border-2 border-dashed rounded-lg flex flex-col items-center justify-center py-4">
+                <label className="flex flex-col items-center cursor-pointer">
+                  <Camera className="w-8 h-8 text-gray-400 mb-2" />
+                  <span className="font-medium">Trasera</span>
+                  <span className="text-xs text-blue-600 mt-1">Subir Foto</span>
+                  <input type="file" accept="image/*" className="hidden"
+                    onChange={e => handlePhotoUpload(e, 'photoRear')}
+                  />
+                  {preview.photoRear || formData.photoRear ? (
+                    <img src={preview.photoRear || `${API}/uploads/${formData.photoRear}`} alt="Trasera" className="mt-2 w-24 h-16 object-cover rounded border" />
+                  ) : null}
+                </label>
+              </div>
+              {/* Lado Izquierdo */}
+              <div className="border-2 border-dashed rounded-lg flex flex-col items-center justify-center py-4">
+                <label className="flex flex-col items-center cursor-pointer">
+                  <Camera className="w-8 h-8 text-gray-400 mb-2" />
+                  <span className="font-medium">Lado Izquierdo</span>
+                  <span className="text-xs text-blue-600 mt-1">Subir Foto</span>
+                  <input type="file" accept="image/*" className="hidden"
+                    onChange={e => handlePhotoUpload(e, 'photoLeft')}
+                  />
+                  {preview.photoLeft || formData.photoLeft ? (
+                    <img src={preview.photoLeft || `${API}/uploads/${formData.photoLeft}`} alt="Lado Izquierdo" className="mt-2 w-24 h-16 object-cover rounded border" />
+                  ) : null}
+                </label>
+              </div>
+              {/* Lado Derecho */}
+              <div className="border-2 border-dashed rounded-lg flex flex-col items-center justify-center py-4">
+                <label className="flex flex-col items-center cursor-pointer">
+                  <Camera className="w-8 h-8 text-gray-400 mb-2" />
+                  <span className="font-medium">Lado Derecho</span>
+                  <span className="text-xs text-blue-600 mt-1">Subir Foto</span>
+                  <input type="file" accept="image/*" className="hidden"
+                    onChange={e => handlePhotoUpload(e, 'photoRight')}
+                  />
+                  {preview.photoRight || formData.photoRight ? (
+                    <img src={preview.photoRight || `${API}/uploads/${formData.photoRight}`} alt="Lado Derecho" className="mt-2 w-24 h-16 object-cover rounded border" />
+                  ) : null}
+                </label>
+              </div>
+              {/* Interior */}
+              <div className="border-2 border-dashed rounded-lg flex flex-col items-center justify-center py-4">
+                <label className="flex flex-col items-center cursor-pointer">
+                  <Camera className="w-8 h-8 text-gray-400 mb-2" />
+                  <span className="font-medium">Interior</span>
+                  <span className="text-xs text-blue-600 mt-1">Subir Foto</span>
+                  <input type="file" accept="image/*" className="hidden"
+                    onChange={e => handlePhotoUpload(e, 'photoInterior')}
+                  />
+                  {preview.photoInterior || formData.photoInterior ? (
+                    <img src={preview.photoInterior || `${API}/uploads/${formData.photoInterior}`} alt="Interior" className="mt-2 w-24 h-16 object-cover rounded border" />
+                  ) : null}
+                </label>
+              </div>
+              {/* Motor */}
+              <div className="border-2 border-dashed rounded-lg flex flex-col items-center justify-center py-4">
+                <label className="flex flex-col items-center cursor-pointer">
+                  <Camera className="w-8 h-8 text-gray-400 mb-2" />
+                  <span className="font-medium">Motor</span>
+                  <span className="text-xs text-blue-600 mt-1">Subir Foto</span>
+                  <input type="file" accept="image/*" className="hidden"
+                    onChange={e => handlePhotoUpload(e, 'photoEngine')}
+                  />
+                  {preview.photoEngine || formData.photoEngine ? (
+                    <img src={preview.photoEngine || `${API}/uploads/${formData.photoEngine}`} alt="Motor" className="mt-2 w-24 h-16 object-cover rounded border" />
+                  ) : null}
+                </label>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div className="flex justify-end space-x-4">
+          <button
+            type="button"
+            onClick={() => { isEdit ? (setShowEditForm(false), setEditId(null)) : setShowForm(false); resetForm(); }}
+            className="px-6 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
+          >
+            Cancelar
+          </button>
+          <button
+            type="submit"
+            className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+          >
+            {isEdit ? 'Guardar Cambios' : 'Registrar Vehículo'}
+          </button>
+        </div>
+      </form>
+    </div>
+  );
+
+  if (showForm) return renderForm(false);
+  if (showEditForm) return renderForm(true);
+
+  // Visualizar detalles
+  if (showDetails) {
+    const vehicle = showDetails;
     return (
       <div className="space-y-8">
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-3xl font-bold text-gray-900">Registrar Vehículo</h1>
-            <p className="text-gray-600 mt-1">Complete todos los datos del vehículo</p>
+            <h1 className="text-3xl font-bold text-gray-900">Detalles del Vehículo</h1>
+            <p className="text-gray-600 mt-1">Información completa del vehículo</p>
           </div>
           <button
-            onClick={() => setShowForm(false)}
+            onClick={() => setShowDetails(null)}
             className="px-4 py-2 text-gray-600 hover:text-gray-900 transition-colors"
           >
-            Cancelar
+            Volver
           </button>
         </div>
-
-        <form onSubmit={handleSubmit} className="space-y-8">
-          <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-            <h3 className="text-xl font-semibold text-gray-900 mb-6 flex items-center">
-              <Car className="w-5 h-5 mr-2" />
-              Datos del Vehículo
-            </h3>
-            
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Modelo *
-                </label>
-                <input
-                  type="text"
-                  required
-                  value={formData.model}
-                  onChange={(e) => setFormData({...formData, model: e.target.value})}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                  placeholder="Ej: Toyota Corolla"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Año *
-                </label>
-                <input
-                  type="number"
-                  required
-                  min="1990"
-                  max={new Date().getFullYear() + 1}
-                  value={formData.year}
-                  onChange={(e) => setFormData({...formData, year: parseInt(e.target.value)})}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Color *
-                </label>
-                <input
-                  type="text"
-                  required
-                  value={formData.color}
-                  onChange={(e) => setFormData({...formData, color: e.target.value})}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                  placeholder="Ej: Blanco"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Placa *
-                </label>
-                <input
-                  type="text"
-                  required
-                  value={formData.plate}
-                  onChange={(e) => setFormData({...formData, plate: e.target.value.toUpperCase()})}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                  placeholder="Ej: ABC-123"
-                />
-              </div>
+        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+          <div className="flex items-center space-x-4 mb-6">
+            <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center">
+              <Car className="w-8 h-8 text-blue-600" />
             </div>
-
-            {/* Photo Upload Section */}
-            <div className="mt-8">
-              <h4 className="text-lg font-medium text-gray-900 mb-4">Fotos del Vehículo</h4>
-              <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-                {['Frontal', 'Trasera', 'Lado Izquierdo', 'Lado Derecho', 'Interior', 'Motor'].map((type) => (
-                  <div key={type} className="border-2 border-dashed border-gray-300 rounded-lg p-4 text-center hover:border-blue-400 transition-colors">
-                    <Camera className="w-8 h-8 text-gray-400 mx-auto mb-2" />
-                    <p className="text-sm font-medium text-gray-700">{type}</p>
-                    <button
-                      type="button"
-                      className="mt-2 text-xs text-blue-600 hover:text-blue-700"
-                    >
-                      Subir Foto
-                    </button>
-                  </div>
-                ))}
-              </div>
+            <div>
+              <h2 className="text-2xl font-bold text-gray-900">{vehicle.model} {vehicle.year}</h2>
+              <p className="text-gray-500">Placa: {vehicle.plate}</p>
             </div>
           </div>
-
-          <div className="flex justify-end space-x-4">
-            <button
-              type="button"
-              onClick={() => setShowForm(false)}
-              className="px-6 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
-            >
-              Cancelar
-            </button>
-            <button
-              type="submit"
-              className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-            >
-              Registrar Vehículo
-            </button>
+          <div className="space-y-2 text-sm">
+            <div><strong>Color:</strong> {vehicle.color}</div>
+            <div>
+              <strong>Estado:</strong>{' '}
+              <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
+                vehicle.driverId 
+                  ? 'bg-green-100 text-green-800' 
+                  : 'bg-yellow-100 text-yellow-800'
+              }`}>
+                {vehicle.driverId ? (
+                  <>
+                    <CheckCircle className="w-3 h-3 mr-1" />
+                    Asignado
+                  </>
+                ) : (
+                  <>
+                    <AlertCircle className="w-3 h-3 mr-1" />
+                    Disponible
+                  </>
+                )}
+              </span>
+            </div>
+            <div>
+              <strong>Registrado:</strong> {new Date(vehicle.createdAt).toLocaleDateString('es-ES')}
+            </div>
+            <div className="grid grid-cols-3 gap-4 mt-4">
+              {vehicle.photoFront && (
+                <div className="relative w-32 h-20 border rounded-lg overflow-hidden bg-gray-50">
+                  <img src={`${API}/uploads/${vehicle.photoFront}`} alt="Frontal" className="object-cover w-full h-full" />
+                  <span className="absolute bottom-1 left-1 bg-white bg-opacity-80 text-xs px-2 py-0.5 rounded">Frontal</span>
+                </div>
+              )}
+              {vehicle.photoRear && (
+                <div className="relative w-32 h-20 border rounded-lg overflow-hidden bg-gray-50">
+                  <img src={`${API}/uploads/${vehicle.photoRear}`} alt="Trasera" className="object-cover w-full h-full" />
+                  <span className="absolute bottom-1 left-1 bg-white bg-opacity-80 text-xs px-2 py-0.5 rounded">Trasera</span>
+                </div>
+              )}
+              {vehicle.photoLeft && (
+                <div className="relative w-32 h-20 border rounded-lg overflow-hidden bg-gray-50">
+                  <img src={`${API}/uploads/${vehicle.photoLeft}`} alt="Lado Izquierdo" className="object-cover w-full h-full" />
+                  <span className="absolute bottom-1 left-1 bg-white bg-opacity-80 text-xs px-2 py-0.5 rounded">Lado Izquierdo</span>
+                </div>
+              )}
+              {vehicle.photoRight && (
+                <div className="relative w-32 h-20 border rounded-lg overflow-hidden bg-gray-50">
+                  <img src={`${API}/uploads/${vehicle.photoRight}`} alt="Lado Derecho" className="object-cover w-full h-full" />
+                  <span className="absolute bottom-1 left-1 bg-white bg-opacity-80 text-xs px-2 py-0.5 rounded">Lado Derecho</span>
+                </div>
+              )}
+              {vehicle.photoInterior && (
+                <div className="relative w-32 h-20 border rounded-lg overflow-hidden bg-gray-50">
+                  <img src={`${API}/uploads/${vehicle.photoInterior}`} alt="Interior" className="object-cover w-full h-full" />
+                  <span className="absolute bottom-1 left-1 bg-white bg-opacity-80 text-xs px-2 py-0.5 rounded">Interior</span>
+                </div>
+              )}
+              {vehicle.photoEngine && (
+                <div className="relative w-32 h-20 border rounded-lg overflow-hidden bg-gray-50">
+                  <img src={`${API}/uploads/${vehicle.photoEngine}`} alt="Motor" className="object-cover w-full h-full" />
+                  <span className="absolute bottom-1 left-1 bg-white bg-opacity-80 text-xs px-2 py-0.5 rounded">Motor</span>
+                </div>
+              )}
+            </div>
           </div>
-        </form>
+        </div>
       </div>
     );
   }
 
+  // Vista principal
   return (
     <div className="space-y-8">
       <div className="flex items-center justify-between">
@@ -225,19 +512,40 @@ export default function VehicleManagement() {
                 </div>
               </div>
               <div className="flex space-x-2">
-                <button className="p-1 text-gray-400 hover:text-blue-600 transition-colors">
+                <button className="p-1 text-gray-400 hover:text-blue-600 transition-colors" onClick={() => handleView(vehicle)}>
                   <Eye className="w-4 h-4" />
                 </button>
-                <button className="p-1 text-gray-400 hover:text-blue-600 transition-colors">
+                <button className="p-1 text-gray-400 hover:text-blue-600 transition-colors" onClick={() => handleEdit(vehicle)}>
                   <Edit2 className="w-4 h-4" />
                 </button>
-                <button className="p-1 text-gray-400 hover:text-red-600 transition-colors">
+                <button className="p-1 text-gray-400 hover:text-red-600 transition-colors" onClick={() => handleDelete(vehicle.id)}>
                   <Trash2 className="w-4 h-4" />
                 </button>
               </div>
             </div>
 
-            <div className="space-y-2 text-sm">
+            <div className="flex gap-2 mt-2">
+              {vehicle.photoFront && (
+                <img src={`${API}/uploads/${vehicle.photoFront}`} alt="Frontal" className="w-14 h-10 object-cover rounded border" />
+              )}
+              {vehicle.photoRear && (
+                <img src={`${API}/uploads/${vehicle.photoRear}`} alt="Trasera" className="w-14 h-10 object-cover rounded border" />
+              )}
+              {vehicle.photoLeft && (
+                <img src={`${API}/uploads/${vehicle.photoLeft}`} alt="Lado Izquierdo" className="w-14 h-10 object-cover rounded border" />
+              )}
+              {vehicle.photoRight && (
+                <img src={`${API}/uploads/${vehicle.photoRight}`} alt="Lado Derecho" className="w-14 h-10 object-cover rounded border" />
+              )}
+              {vehicle.photoInterior && (
+                <img src={`${API}/uploads/${vehicle.photoInterior}`} alt="Interior" className="w-14 h-10 object-cover rounded border" />
+              )}
+              {vehicle.photoEngine && (
+                <img src={`${API}/uploads/${vehicle.photoEngine}`} alt="Motor" className="w-14 h-10 object-cover rounded border" />
+              )}
+            </div>
+
+            <div className="space-y-2 text-sm mt-2">
               <div className="flex items-center justify-between">
                 <span className="text-gray-600">Color:</span>
                 <span className="font-medium">{vehicle.color}</span>
@@ -269,7 +577,7 @@ export default function VehicleManagement() {
                 <span className="text-xs text-gray-500">
                   Registrado: {new Date(vehicle.createdAt).toLocaleDateString('es-ES')}
                 </span>
-                <button className="text-xs text-blue-600 hover:text-blue-700 font-medium">
+                <button className="text-xs text-blue-600 hover:text-blue-700 font-medium" onClick={() => handleView(vehicle)}>
                   Ver Detalles
                 </button>
               </div>

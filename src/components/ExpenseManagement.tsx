@@ -1,9 +1,8 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   Plus, 
   Search, 
   Calendar,
-  MapPin,
   DollarSign,
   Camera,
   Edit2,
@@ -29,61 +28,162 @@ export default function ExpenseManagement() {
   const [showForm, setShowForm] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterType, setFilterType] = useState<string>('all');
+  const [vehicles, setVehicles] = useState<{ id: string; plate: string; brand: string }[]>([]);
   const [formData, setFormData] = useState({
+    id: '',
     vehicleId: '',
     date: new Date().toISOString().split('T')[0],
     place: '',
     type: 'mechanical' as Expense['type'],
     cost: 0,
     description: '',
+    invoice: '',
   });
+  const [invoicePreview, setInvoicePreview] = useState<string | null>(null);
+  const [editingId, setEditingId] = useState<string | null>(null);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  useEffect(() => {
+    fetch('http://localhost:3002/api/expenses')
+      .then(res => res.json())
+      .then(data => setExpenses(data))
+      .catch(err => console.error('Error al cargar gastos:', err));
+    fetch('http://localhost:3002/api/vehicles')
+      .then(res => res.json())
+      .then(data => setVehicles(data));
+  }, []);
+
+  const handleInvoiceChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files[0]) {
+      const file = e.target.files[0];
+      setInvoicePreview(URL.createObjectURL(file));
+      const formDataData = new FormData();
+      formDataData.append('photo', file);
+      try {
+        const res = await fetch('http://localhost:3002/api/upload', {
+          method: 'POST',
+          body: formDataData,
+        });
+        const data = await res.json();
+        setFormData(prev => ({ ...prev, invoice: data.filename ?? '' }));
+      } catch (err) {
+        alert('Error subiendo la factura');
+      }
+    }
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    const newExpense: Expense = {
-      id: Date.now().toString(),
-      ...formData,
-      createdAt: new Date().toISOString(),
+    const newExpense: any = {
+      amount: Number(formData.cost ?? 0),
+      date: formData.date ? new Date(formData.date).toISOString() : new Date().toISOString(),
+      vehicleId: formData.vehicleId,
     };
-    setExpenses([...expenses, newExpense]);
-    setShowForm(false);
-    resetForm();
+    if (formData.description) newExpense.description = formData.description;
+    if (formData.place) newExpense.place = formData.place;
+    if (formData.type) newExpense.type = formData.type;
+    if (formData.invoice) newExpense.invoice = formData.invoice;
+
+    try {
+      let res, data;
+      if (editingId) {
+        res = await fetch(`http://localhost:3002/api/expenses/${editingId}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(newExpense),
+        });
+      } else {
+        res = await fetch('http://localhost:3002/api/expenses', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(newExpense),
+        });
+      }
+      if (!res.ok) {
+        const error = await res.json();
+        alert(error.message || 'Error al guardar gasto');
+        return;
+      }
+      data = await res.json();
+      if (editingId) {
+        setExpenses(expenses.map(e => e.id === editingId ? data : e));
+      } else {
+        setExpenses([...expenses, data]);
+      }
+      setShowForm(false);
+      resetForm();
+    } catch (err) {
+      alert('Error al guardar gasto');
+    }
+  };
+
+  const handleDelete = async (id: string) => {
+    if (!window.confirm('¿Seguro que deseas eliminar este gasto?')) return;
+    try {
+      const res = await fetch(`http://localhost:3002/api/expenses/${id}`, { method: 'DELETE' });
+      if (!res.ok) {
+        alert('Error al eliminar gasto');
+        return;
+      }
+      setExpenses(expenses.filter(e => e.id !== id));
+    } catch {
+      alert('Error al eliminar gasto');
+    }
+  };
+
+  const handleEdit = (expense: Expense) => {
+    setShowForm(true);
+    setEditingId(expense.id);
+    setFormData({
+      id: expense.id,
+      vehicleId: expense.vehicleId ?? '',
+      date: expense.date ? expense.date.slice(0, 10) : '',
+      place: expense.place ?? '',
+      type: expense.type ?? 'mechanical',
+      cost: expense.amount ?? 0,
+      description: expense.description ?? '',
+      invoice: expense.invoice ?? '',
+    });
+    setInvoicePreview(expense.invoice ? `http://localhost:3002/uploads/${expense.invoice}` : null);
   };
 
   const resetForm = () => {
     setFormData({
+      id: '',
       vehicleId: '',
       date: new Date().toISOString().split('T')[0],
       place: '',
       type: 'mechanical',
       cost: 0,
       description: '',
+      invoice: '',
     });
+    setInvoicePreview(null);
+    setEditingId(null);
   };
 
   const filteredExpenses = expenses.filter(expense => {
-    const matchesSearch = expense.place.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         expense.description?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         expense.vehicleId.toLowerCase().includes(searchTerm.toLowerCase());
+    const matchesSearch = (expense.place?.toLowerCase() || '').includes(searchTerm.toLowerCase()) ||
+                         (expense.description?.toLowerCase() || '').includes(searchTerm.toLowerCase()) ||
+                         (expense.vehicleId?.toLowerCase() || '').includes(searchTerm.toLowerCase());
     const matchesFilter = filterType === 'all' || expense.type === filterType;
     return matchesSearch && matchesFilter;
   });
 
-  const totalExpenses = expenses.reduce((sum, expense) => sum + expense.cost, 0);
+  const totalExpenses = expenses.reduce((sum, expense) => sum + (expense.amount || 0), 0);
   const monthlyExpenses = expenses
     .filter(expense => new Date(expense.date).getMonth() === new Date().getMonth())
-    .reduce((sum, expense) => sum + expense.cost, 0);
+    .reduce((sum, expense) => sum + (expense.amount || 0), 0);
 
   if (showForm) {
     return (
       <div className="space-y-8">
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-3xl font-bold text-gray-900">Registrar Gasto</h1>
+            <h1 className="text-3xl font-bold text-gray-900">{editingId ? 'Editar Gasto' : 'Registrar Gasto'}</h1>
             <p className="text-gray-600 mt-1">Registra gastos de mantenimiento y reparaciones</p>
           </div>
           <button
-            onClick={() => setShowForm(false)}
+            onClick={() => { setShowForm(false); resetForm(); }}
             className="px-4 py-2 text-gray-600 hover:text-gray-900 transition-colors"
           >
             Cancelar
@@ -100,16 +200,21 @@ export default function ExpenseManagement() {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Vehículo (Placa) *
+                  Vehículo *
                 </label>
-                <input
-                  type="text"
+                <select
                   required
-                  value={formData.vehicleId}
+                  value={formData.vehicleId ?? ''}
                   onChange={(e) => setFormData({...formData, vehicleId: e.target.value})}
                   className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                  placeholder="Ej: ABC-123"
-                />
+                >
+                  <option value="">Selecciona un vehículo</option>
+                  {vehicles.map(vehicle => (
+                    <option key={vehicle.id} value={vehicle.id}>
+                      {vehicle.plate} - {vehicle.brand}
+                    </option>
+                  ))}
+                </select>
               </div>
 
               <div>
@@ -119,7 +224,7 @@ export default function ExpenseManagement() {
                 <input
                   type="date"
                   required
-                  value={formData.date}
+                  value={formData.date ?? ''}
                   onChange={(e) => setFormData({...formData, date: e.target.value})}
                   className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                 />
@@ -132,7 +237,7 @@ export default function ExpenseManagement() {
                 <input
                   type="text"
                   required
-                  value={formData.place}
+                  value={formData.place ?? ''}
                   onChange={(e) => setFormData({...formData, place: e.target.value})}
                   className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                   placeholder="Ej: Taller Mecánico Central"
@@ -145,7 +250,7 @@ export default function ExpenseManagement() {
                 </label>
                 <select
                   required
-                  value={formData.type}
+                  value={formData.type ?? 'mechanical'}
                   onChange={(e) => setFormData({...formData, type: e.target.value as Expense['type']})}
                   className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                 >
@@ -164,8 +269,8 @@ export default function ExpenseManagement() {
                   required
                   min="0"
                   step="0.01"
-                  value={formData.cost}
-                  onChange={(e) => setFormData({...formData, cost: parseFloat(e.target.value)})}
+                  value={formData.cost ?? 0}
+                  onChange={(e) => setFormData({...formData, cost: parseFloat(e.target.value) || 0})}
                   className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                   placeholder="0.00"
                 />
@@ -176,7 +281,7 @@ export default function ExpenseManagement() {
                   Descripción
                 </label>
                 <textarea
-                  value={formData.description}
+                  value={formData.description ?? ''}
                   onChange={(e) => setFormData({...formData, description: e.target.value})}
                   className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                   rows={3}
@@ -191,12 +296,30 @@ export default function ExpenseManagement() {
                 <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center hover:border-blue-400 transition-colors">
                   <Camera className="w-8 h-8 text-gray-400 mx-auto mb-2" />
                   <p className="text-sm text-gray-600 mb-2">Subir foto de la factura</p>
-                  <button
-                    type="button"
-                    className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-                  >
-                    Seleccionar Archivo
-                  </button>
+                  <input
+                    type="file"
+                    accept="image/*"
+                    onChange={handleInvoiceChange}
+                    className="hidden"
+                    id="invoice-upload"
+                  />
+                  <label htmlFor="invoice-upload">
+                    <span className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors cursor-pointer">
+                      Seleccionar Archivo
+                    </span>
+                  </label>
+                  {invoicePreview && (
+                    <img
+                      src={invoicePreview}
+                      alt="Factura"
+                      className="mx-auto mt-4 w-32 h-32 object-cover rounded-lg border"
+                    />
+                  )}
+                  {formData.invoice && (
+                    <div className="mt-2 text-xs text-gray-500">
+                      Archivo subido: {formData.invoice}
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
@@ -205,7 +328,7 @@ export default function ExpenseManagement() {
           <div className="flex justify-end space-x-4">
             <button
               type="button"
-              onClick={() => setShowForm(false)}
+              onClick={() => { setShowForm(false); resetForm(); }}
               className="px-6 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
             >
               Cancelar
@@ -214,7 +337,7 @@ export default function ExpenseManagement() {
               type="submit"
               className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
             >
-              Registrar Gasto
+              {editingId ? 'Actualizar Gasto' : 'Registrar Gasto'}
             </button>
           </div>
         </form>
@@ -230,7 +353,7 @@ export default function ExpenseManagement() {
           <p className="text-gray-600 mt-1">Control de gastos de mantenimiento y reparaciones</p>
         </div>
         <button
-          onClick={() => setShowForm(true)}
+          onClick={() => { setShowForm(true); resetForm(); }}
           className="flex items-center space-x-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
         >
           <Plus className="w-5 h-5" />
@@ -238,7 +361,6 @@ export default function ExpenseManagement() {
         </button>
       </div>
 
-      {/* Stats Cards */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
           <div className="flex items-center justify-between">
@@ -277,7 +399,6 @@ export default function ExpenseManagement() {
         </div>
       </div>
 
-      {/* Filters */}
       <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4">
         <div className="flex flex-col md:flex-row md:items-center space-y-4 md:space-y-0 md:space-x-4">
           <div className="relative flex-1">
@@ -310,7 +431,6 @@ export default function ExpenseManagement() {
         </div>
       </div>
 
-      {/* Expenses List */}
       <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full">
@@ -332,6 +452,9 @@ export default function ExpenseManagement() {
                   Costo
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Factura
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Acciones
                 </th>
               </tr>
@@ -340,14 +463,13 @@ export default function ExpenseManagement() {
               {filteredExpenses.map((expense) => {
                 const expenseType = expenseTypes.find(t => t.id === expense.type);
                 const Icon = expenseType?.icon || Settings;
-                
                 return (
                   <tr key={expense.id} className="hover:bg-gray-50">
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                       {new Date(expense.date).toLocaleDateString('es-ES')}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                      {expense.vehicleId}
+                      {vehicles.find(v => v.id === expense.vehicleId)?.plate || expense.vehicleId}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="flex items-center space-x-2">
@@ -361,14 +483,36 @@ export default function ExpenseManagement() {
                       {expense.place}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm font-semibold text-gray-900">
-                      RD${expense.cost.toLocaleString()}
+                      RD${(expense.amount || 0).toLocaleString()}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                      {expense.invoice ? (
+                        <a
+                          href={`http://localhost:3002/uploads/${expense.invoice}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-blue-600 underline"
+                        >
+                          Ver factura
+                        </a>
+                      ) : (
+                        <span className="text-gray-400">No adjunta</span>
+                      )}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                       <div className="flex space-x-2">
-                        <button className="text-blue-600 hover:text-blue-700">
+                        <button
+                          className="text-blue-600 hover:text-blue-700"
+                          onClick={() => handleEdit(expense)}
+                          title="Editar"
+                        >
                           <Edit2 className="w-4 h-4" />
                         </button>
-                        <button className="text-red-600 hover:text-red-700">
+                        <button
+                          className="text-red-600 hover:text-red-700"
+                          onClick={() => handleDelete(expense.id)}
+                          title="Eliminar"
+                        >
                           <Trash2 className="w-4 h-4" />
                         </button>
                       </div>
@@ -395,7 +539,7 @@ export default function ExpenseManagement() {
           </p>
           {!searchTerm && filterType === 'all' && (
             <button
-              onClick={() => setShowForm(true)}
+              onClick={() => { setShowForm(true); resetForm(); }}
               className="inline-flex items-center space-x-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
             >
               <Plus className="w-5 h-5" />
