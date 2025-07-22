@@ -627,7 +627,7 @@ export default function ContractManagement() {
             <h4 className="font-medium">Exportar Documentos</h4>
             <p className="text-sm text-blue-100">Descargar todos los documentos</p>
           </button>
-        </div>
+        </div>+
       </div>
     </div>
   );

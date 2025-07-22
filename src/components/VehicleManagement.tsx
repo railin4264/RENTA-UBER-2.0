@@ -577,7 +577,7 @@ export default function VehicleManagement() {
                 <span className="text-xs text-gray-500">
                   Registrado: {new Date(vehicle.createdAt).toLocaleDateString('es-ES')}
                 </span>
-                <button className="text-xs text-blue-600 hover:text-blue-700 font-medium" onClick={() => handleView(vehicle)}>
+                <button className="text-xs ttext-blue-600 hover:text-blue-700 font-medium" onClick={() => handleView(vehicle)}>
                   Ver Detalles
                 </button>
               </div>
