@@ -1,0 +1,133 @@
+openapi: 3.0.3
+info:
+  title: Renta Uber - Contracts API
+  version: 1.0.0
+paths:
+  /api/contracts:
+    get:
+      summary: List contracts (paginated)
+      parameters:
+        - in: query
+          name: page
+          schema:
+            type: integer
+        - in: query
+          name: limit
+          schema:
+            type: integer
+        - in: query
+          name: statusId
+          schema:
+            type: string
+        - in: query
+          name: driverId
+          schema:
+            type: string
+        - in: query
+          name: vehicleId
+          schema:
+            type: string
+        - in: query
+          name: q
+          schema:
+            type: string
+      responses:
+        '200':
+          description: paginated list of contracts
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Contract'
+                  meta:
+                    type: object
+                    properties:
+                      page:
+                        type: integer
+                      limit:
+                        type: integer
+                      total:
+                        type: integer
+    post:
+      summary: Create a new contract
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ContractCreate'
+      responses:
+        '201':
+          description: Contract created
+  /api/contracts/{id}:
+    get:
+      summary: Get contract by id
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: contract
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Contract'
+components:
+  schemas:
+    Contract:
+      type: object
+      properties:
+        id:
+          type: string
+        driverId:
+          type: string
+        vehicleId:
+          type: string
+        startDate:
+          type: string
+          format: date-time
+        endDate:
+          type: string
+          format: date-time
+        rate:
+          type: number
+        rateType:
+          type: string
+        deposit:
+          type: number
+        status:
+          type: object
+    ContractCreate:
+      type: object
+      required: [driverId, vehicleId, startDate]
+      properties:
+        driverId:
+          type: string
+        vehicleId:
+          type: string
+        startDate:
+          type: string
+          format: date-time
+        endDate:
+          type: string
+          format: date-time
+        type:
+          type: string
+          enum: [DAILY, MONTHLY, CUSTOM]
+        basePrice:
+          type: number
+        dailyPrice:
+          type: number
+        monthlyPrice:
+          type: number
+        deposit:
+          type: number

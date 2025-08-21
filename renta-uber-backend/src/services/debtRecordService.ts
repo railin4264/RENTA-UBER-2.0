@@ -12,14 +12,14 @@ export const updateDebtRecord = async (id: string, data: Prisma.DebtRecordUpdate
 
 export const getDebtRecords = async () => {
   return prisma.debtRecord.findMany({
-    include: { status: true }, // <-- para traer el status completo
+    include: { driver: true },
   });
 };
 
 export const getDebtRecordById = async (id: string) => {
   return prisma.debtRecord.findUnique({
     where: { id },
-    include: { status: true }, // <-- para traer el status completo
+    include: { driver: true },
   });
 };
 

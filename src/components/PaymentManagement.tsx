@@ -1,470 +1,838 @@
-import React, { useState } from 'react';
-import { 
-  Plus, 
-  Search, 
-  Calendar,
+import React, { useState, useEffect } from 'react';
+import { toast } from 'react-hot-toast';
+import { useAuth } from '../context/AuthContext';
+import {
   DollarSign,
-  User,
-  Car,
-  CheckCircle,
-  AlertCircle,
-  Clock,
-  Edit2,
+  Plus,
+  Search,
+  Edit,
   Trash2,
+  Eye,
   Filter,
-  Download
+  Download,
+  Upload,
+  AlertTriangle,
+  CheckCircle,
+  XCircle,
+  Calendar,
+  MapPin,
+  Shield,
+  Users,
+  Car,
+  Clock,
+  TrendingUp,
+  Calculator,
+  Receipt,
+  CreditCard,
+  Banknote
 } from 'lucide-react';
-import type { Payment, DebtRecord } from '../types';
+
+interface Payment {
+  id: string;
+  contractId: string;
+  driverId: string;
+  amount: number;
+  type: 'payment' | 'deposit' | 'penalty' | 'refund';
+  method: 'cash' | 'bank_transfer' | 'credit_card' | 'debit_card' | 'mobile_payment';
+  status: 'pending' | 'completed' | 'failed' | 'cancelled';
+  date: string;
+  dueDate: string;
+  description: string;
+  reference: string;
+  notes: string;
+  driver: {
+    id: string;
+    firstName: string;
+    lastName: string;
+    cedula: string;
+  };
+  contract: {
+    id: string;
+    startDate: string;
+    endDate: string;
+    rate: number;
+    rateType: string;
+  };
+  createdAt: string;
+  updatedAt: string;
+}
+
+interface PaymentFormData {
+  contractId: string;
+  driverId: string;
+  amount: number;
+  type: 'payment' | 'deposit' | 'penalty' | 'refund';
+  method: 'cash' | 'bank_transfer' | 'credit_card' | 'debit_card' | 'mobile_payment';
+  status: 'pending' | 'completed' | 'failed' | 'cancelled';
+  date: string;
+  dueDate: string;
+  description: string;
+  reference: string;
+  notes: string;
+}
+
+interface ValidationErrors {
+  [key: string]: string;
+}
 
 export default function PaymentManagement() {
+  const { getAuthHeaders } = useAuth();
   const [payments, setPayments] = useState<Payment[]>([]);
-  const [debts, setDebts] = useState<DebtRecord[]>([]);
+  const [contracts, setContracts] = useState<any[]>([]);
+  const [drivers, setDrivers] = useState<any[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
+  const [editingPayment, setEditingPayment] = useState<Payment | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
-  const [activeTab, setActiveTab] = useState<'payments' | 'debts'>('debts');
-  const [formData, setFormData] = useState({
+  const [statusFilter, setStatusFilter] = useState('all');
+  const [typeFilter, setTypeFilter] = useState('all');
+  const [formData, setFormData] = useState<PaymentFormData>({
+    contractId: '',
     driverId: '',
     amount: 0,
-    type: 'complete' as Payment['type'],
-    dailySavings: 1600,
-    notes: '',
+    type: 'payment',
+    method: 'cash',
+    status: 'pending',
+    date: '',
+    dueDate: '',
+    description: '',
+    reference: '',
+    notes: ''
   });
+  const [errors, setErrors] = useState<ValidationErrors>({});
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  useEffect(() => {
+    loadData();
+  }, []);
+
+  const loadData = async () => {
+    try {
+      setIsLoading(true);
+      
+      // Cargar pagos
+      const paymentsResponse = await fetch('http://localhost:3001/api/payments', { headers: getAuthHeaders() });
+      if (paymentsResponse.ok) {
+        const result = await paymentsResponse.json();
+        // El backend devuelve { success: true, data: [...], count: number }
+        const paymentsData = result.success && Array.isArray(result.data) ? result.data : [];
+        setPayments(paymentsData);
+      } else { setPayments([]); toast.error('No se pudieron cargar los pagos'); }
+
+      // Cargar conductores
+      const driversResponse = await fetch('http://localhost:3001/api/drivers', { headers: getAuthHeaders() });
+      if (driversResponse.ok) {
+        const result = await driversResponse.json();
+        const driversData = result.success && Array.isArray(result.data) ? result.data : [];
+        setDrivers(driversData);
+      } else { setDrivers([]); }
+
+      // Cargar contratos
+      const contractsResponse = await fetch('http://localhost:3001/api/contracts', { headers: getAuthHeaders() });
+      if (contractsResponse.ok) {
+        const result = await contractsResponse.json();
+        const contractsData = result.success && Array.isArray(result.data) ? result.data : [];
+        setContracts(contractsData);
+      } else { setContracts([]); }
+    } catch (error) {
+      console.error('Error cargando datos:', error);
+      // En caso de error, establecer arrays vacíos
+      setPayments([]);
+      setDrivers([]);
+      setContracts([]);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const validateForm = (): boolean => {
+    const newErrors: ValidationErrors = {};
+
+    // Validaciones requeridas
+    if (!formData.contractId) {
+      newErrors.contractId = 'El contrato es requerido';
+    }
+
+    if (!formData.driverId) {
+      newErrors.driverId = 'El conductor es requerido';
+    }
+
+    if (formData.amount <= 0) {
+      newErrors.amount = 'El monto debe ser mayor a 0';
+    }
+
+    if (!formData.date) {
+      newErrors.date = 'La fecha es requerida';
+    }
+
+    if (!formData.description.trim()) {
+      newErrors.description = 'La descripción es requerida';
+    }
+
+    // Validación de fecha de vencimiento
+    if (formData.dueDate && formData.date) {
+      const dueDate = new Date(formData.dueDate);
+      const paymentDate = new Date(formData.date);
+      if (paymentDate > dueDate && formData.status === 'completed') {
+        newErrors.date = 'No se puede registrar un pago completado después de la fecha de vencimiento';
+      }
+    }
+
+    // Validación de referencia única
+    if (formData.reference.trim()) {
+      const existingPayment = payments.find(payment => 
+        payment.reference === formData.reference && 
+        payment.id !== editingPayment?.id
+      );
+      if (existingPayment) {
+        newErrors.reference = 'La referencia ya existe';
+      }
+    }
+
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    const newPayment: Payment = {
-      id: Date.now().toString(),
-      ...formData,
-      date: new Date().toISOString(),
-      createdAt: new Date().toISOString(),
-    };
-    setPayments([...payments, newPayment]);
-    setShowForm(false);
-    resetForm();
+    
+    if (!validateForm()) {
+      return;
+    }
+
+    setIsSubmitting(true);
+
+    try {
+      const url = editingPayment 
+        ? `http://localhost:3001/api/payments/${editingPayment.id}`
+        : 'http://localhost:3001/api/payments';
+      
+      const method = editingPayment ? 'PUT' : 'POST';
+
+      const response = await fetch(url, {
+        method,
+        headers: {
+          'Content-Type': 'application/json',
+          ...getAuthHeaders()
+        },
+        body: JSON.stringify(formData),
+      });
+
+      if (response.ok) {
+        setShowForm(false);
+        setEditingPayment(null);
+        resetForm();
+        loadData();
+        toast.success(editingPayment ? 'Pago actualizado' : 'Pago creado');
+      } else {
+        const errorData = await response.json();
+        toast.error(errorData.error || 'Error al guardar el pago');
+      }
+    } catch (error) {
+      console.error('Error guardando pago:', error);
+      toast.error('Error al guardar el pago');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleEdit = (payment: Payment) => {
+    setEditingPayment(payment);
+    setFormData({
+      contractId: payment.contractId,
+      driverId: payment.driverId,
+      amount: payment.amount,
+      type: payment.type,
+      method: payment.method,
+      status: payment.status,
+      date: payment.date,
+      dueDate: payment.dueDate,
+      description: payment.description,
+      reference: payment.reference,
+      notes: payment.notes
+    });
+    setShowForm(true);
+  };
+
+  const handleDelete = async (id: string) => {
+    if (!confirm('¿Estás seguro de que quieres eliminar este pago?')) {
+      return;
+    }
+
+    try {
+      const response = await fetch(`http://localhost:3001/api/payments/${id}`, {
+        method: 'DELETE',
+        headers: getAuthHeaders()
+      });
+
+      if (response.ok) {
+        loadData();
+        toast.success('Pago eliminado');
+      } else {
+        const errorData = await response.json();
+        toast.error(errorData.error || 'Error al eliminar el pago');
+      }
+    } catch (error) {
+      console.error('Error eliminando pago:', error);
+      toast.error('Error al eliminar el pago');
+    }
   };
 
   const resetForm = () => {
     setFormData({
+      contractId: '',
       driverId: '',
       amount: 0,
-      type: 'complete',
-      dailySavings: 1600,
-      notes: '',
+      type: 'payment',
+      method: 'cash',
+      status: 'pending',
+      date: '',
+      dueDate: '',
+      description: '',
+      reference: '',
+      notes: ''
     });
+    setErrors({});
   };
 
-  // Mock debt data
-  const mockDebts: DebtRecord[] = [
-    {
-      id: '1',
-      driverId: 'Carlos Martínez',
-      vehiclePlate: 'ABC-123',
-      amount: 3200,
-      dueDate: '2025-01-15',
-      status: 'pending',
-      notes: '',
-      createdAt: '2025-01-01T00:00:00Z'
-    },
-    {
-      id: '2',
-      driverId: 'Ana López',
-      vehiclePlate: 'DEF-456',
-      amount: 1600,
-      dueDate: '2025-01-16',
-      status: 'pending',
-      notes: '',
-      createdAt: '2025-01-01T00:00:00Z'
-    },
-    {
-      id: '3',
-      driverId: 'Roberto Silva',
-      vehiclePlate: 'GHI-789',
-      amount: 4800,
-      dueDate: '2025-01-17',
-      status: 'pending',
-      isVehicleInactive: true,
-      notes: 'Vehículo fuera de servicio',
-      createdAt: '2025-01-01T00:00:00Z'
+  const filteredPayments = Array.isArray(payments) ? payments.filter(payment => {
+    const matchesSearch = 
+      (payment.driver?.firstName && payment.driver.firstName.toLowerCase().includes(searchTerm.toLowerCase())) ||
+      (payment.driver?.lastName && payment.driver.lastName.toLowerCase().includes(searchTerm.toLowerCase())) ||
+      (payment.description && payment.description.toLowerCase().includes(searchTerm.toLowerCase())) ||
+      (payment.reference && payment.reference.toLowerCase().includes(searchTerm.toLowerCase()));
+    
+    const matchesStatus = statusFilter === 'all' || payment.status === statusFilter;
+    const matchesType = typeFilter === 'all' || payment.type === typeFilter;
+    
+    return matchesSearch && matchesStatus && matchesType;
+  }) : [];
+
+  const formatCurrency = (amount: number) => {
+    return new Intl.NumberFormat('es-DO', {
+      style: 'currency',
+      currency: 'DOP'
+    }).format(amount);
+  };
+
+  const formatDate = (dateString: string) => {
+    return new Date(dateString).toLocaleDateString('es-ES');
+  };
+
+  const getStatusColor = (status: string) => {
+    switch (status) {
+      case 'completed':
+        return 'bg-green-100 text-green-800';
+      case 'pending':
+        return 'bg-yellow-100 text-yellow-800';
+      case 'failed':
+        return 'bg-red-100 text-red-800';
+      case 'cancelled':
+        return 'bg-gray-100 text-gray-800';
+      default:
+        return 'bg-gray-100 text-gray-800';
     }
-  ];
+  };
 
-  const filteredDebts = mockDebts.filter(debt =>
-    debt.driverId.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    debt.vehiclePlate.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  const getTypeColor = (type: string) => {
+    switch (type) {
+      case 'payment':
+        return 'bg-blue-100 text-blue-800';
+      case 'deposit':
+        return 'bg-green-100 text-green-800';
+      case 'penalty':
+        return 'bg-red-100 text-red-800';
+      case 'refund':
+        return 'bg-purple-100 text-purple-800';
+      default:
+        return 'bg-gray-100 text-gray-800';
+    }
+  };
 
-  const filteredPayments = payments.filter(payment =>
-    payment.driverId.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  const getMethodIcon = (method: string) => {
+    switch (method) {
+      case 'cash':
+        return <Banknote className="w-4 h-4" />;
+      case 'bank_transfer':
+        return <Shield className="w-4 h-4" />;
+      case 'credit_card':
+      case 'debit_card':
+        return <CreditCard className="w-4 h-4" />;
+      case 'mobile_payment':
+        return <Receipt className="w-4 h-4" />;
+      default:
+        return <DollarSign className="w-4 h-4" />;
+    }
+  };
 
-  const totalPendingDebt = mockDebts
-    .filter(debt => debt.status === 'pending')
-    .reduce((sum, debt) => sum + debt.amount, 0);
+  const getMethodLabel = (method: string) => {
+    switch (method) {
+      case 'cash':
+        return 'Efectivo';
+      case 'bank_transfer':
+        return 'Transferencia';
+      case 'credit_card':
+        return 'Tarjeta Crédito';
+      case 'debit_card':
+        return 'Tarjeta Débito';
+      case 'mobile_payment':
+        return 'Pago Móvil';
+      default:
+        return method;
+    }
+  };
 
-  const monthlyPayments = payments
-    .filter(payment => new Date(payment.date).getMonth() === new Date().getMonth())
-    .reduce((sum, payment) => sum + payment.amount, 0);
+  const getTypeLabel = (type: string) => {
+    switch (type) {
+      case 'payment':
+        return 'Pago';
+      case 'deposit':
+        return 'Depósito';
+      case 'penalty':
+        return 'Penalización';
+      case 'refund':
+        return 'Reembolso';
+      default:
+        return type;
+    }
+  };
 
-  if (showForm) {
+  const getStatusLabel = (status: string) => {
+    switch (status) {
+      case 'completed':
+        return 'Completado';
+      case 'pending':
+        return 'Pendiente';
+      case 'failed':
+        return 'Fallido';
+      case 'cancelled':
+        return 'Cancelado';
+      default:
+        return status;
+    }
+  };
+
+  if (isLoading) {
     return (
-      <div className="space-y-8">
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-3xl font-bold text-gray-900">Registrar Pago</h1>
-            <p className="text-gray-600 mt-1">Registra pagos de choferes</p>
-          </div>
-          <button
-            onClick={() => setShowForm(false)}
-            className="px-4 py-2 text-gray-600 hover:text-gray-900 transition-colors"
-          >
-            Cancelar
-          </button>
+      <div className="flex items-center justify-center h-64">
+        <div className="flex items-center space-x-2">
+          <div className="w-6 h-6 border-2 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
+          <span className="text-gray-600">Cargando pagos...</span>
         </div>
-
-        <form onSubmit={handleSubmit} className="space-y-8">
-          <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-            <h3 className="text-xl font-semibold text-gray-900 mb-6 flex items-center">
-              <DollarSign className="w-5 h-5 mr-2" />
-              Detalles del Pago
-            </h3>
-            
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Chofer *
-                </label>
-                <input
-                  type="text"
-                  required
-                  value={formData.driverId}
-                  onChange={(e) => setFormData({...formData, driverId: e.target.value})}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                  placeholder="Nombre del chofer"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Monto (RD$) *
-                </label>
-                <input
-                  type="number"
-                  required
-                  min="0"
-                  step="0.01"
-                  value={formData.amount}
-                  onChange={(e) => setFormData({...formData, amount: parseFloat(e.target.value)})}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                  placeholder="0.00"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Tipo de Pago *
-                </label>
-                <select
-                  required
-                  value={formData.type}
-                  onChange={(e) => setFormData({...formData, type: e.target.value as Payment['type']})}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                >
-                  <option value="complete">Pago Completo</option>
-                  <option value="partial">Pago Parcial</option>
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Ahorro Diario (RD$) *
-                </label>
-                <input
-                  type="number"
-                  required
-                  min="0"
-                  step="0.01"
-                  value={formData.dailySavings}
-                  onChange={(e) => setFormData({...formData, dailySavings: parseFloat(e.target.value)})}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                  placeholder="1600.00"
-                />
-              </div>
-
-              <div className="md:col-span-2">
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Notas
-                </label>
-                <textarea
-                  value={formData.notes}
-                  onChange={(e) => setFormData({...formData, notes: e.target.value})}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                  rows={3}
-                  placeholder="Notas adicionales..."
-                />
-              </div>
-            </div>
-          </div>
-
-          <div className="flex justify-end space-x-4">
-            <button
-              type="button"
-              onClick={() => setShowForm(false)}
-              className="px-6 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
-            >
-              Cancelar
-            </button>
-            <button
-              type="submit"
-              className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-            >
-              Registrar Pago
-            </button>
-          </div>
-        </form>
       </div>
     );
   }
 
   return (
-    <div className="space-y-8">
-      <div className="flex items-center justify-between">
+    <div className="space-y-6">
+      {/* Header */}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between space-y-4 sm:space-y-0">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900">Sistema de Cobros</h1>
-          <p className="text-gray-600 mt-1">Gestiona pagos y deudas pendientes</p>
+          <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">Gestión de Pagos</h1>
+          <p className="text-gray-600 mt-1">Administra todos los pagos y transacciones</p>
         </div>
-        <button
-          onClick={() => setShowForm(true)}
-          className="flex items-center space-x-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-        >
-          <Plus className="w-5 h-5" />
-          <span>Registrar Pago</span>
-        </button>
-      </div>
-
-      {/* Stats Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium text-gray-600">Deudas Pendientes</p>
-              <p className="text-2xl font-bold text-red-600">RD${totalPendingDebt.toLocaleString()}</p>
-            </div>
-            <div className="w-12 h-12 bg-red-500 rounded-lg flex items-center justify-center">
-              <AlertCircle className="w-6 h-6 text-white" />
-            </div>
-          </div>
-        </div>
-
-        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium text-gray-600">Pagos Este Mes</p>
-              <p className="text-2xl font-bold text-green-600">RD${monthlyPayments.toLocaleString()}</p>
-            </div>
-            <div className="w-12 h-12 bg-green-500 rounded-lg flex items-center justify-center">
-              <CheckCircle className="w-6 h-6 text-white" />
-            </div>
-          </div>
-        </div>
-
-        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium text-gray-600">Total Pagos</p>
-              <p className="text-2xl font-bold text-gray-900">{payments.length}</p>
-            </div>
-            <div className="w-12 h-12 bg-blue-500 rounded-lg flex items-center justify-center">
-              <DollarSign className="w-6 h-6 text-white" />
-            </div>
-          </div>
+        <div className="flex items-center space-x-3">
+          <button
+            onClick={() => {
+              resetForm();
+              setShowForm(true);
+              setEditingPayment(null);
+            }}
+            className="flex items-center space-x-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+          >
+            <Plus className="w-4 h-4" />
+            <span>Nuevo Pago</span>
+          </button>
         </div>
       </div>
 
-      {/* Tabs */}
-      <div className="bg-white rounded-xl shadow-sm border border-gray-200">
-        <div className="border-b border-gray-200">
-          <nav className="flex space-x-8 px-6">
-            <button
-              onClick={() => setActiveTab('debts')}
-              className={`py-4 px-1 border-b-2 font-medium text-sm transition-colors ${
-                activeTab === 'debts'
-                  ? 'border-blue-500 text-blue-600'
-                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-              }`}
-            >
-              Deudas Pendientes ({mockDebts.filter(d => d.status === 'pending').length})
-            </button>
-            <button
-              onClick={() => setActiveTab('payments')}
-              className={`py-4 px-1 border-b-2 font-medium text-sm transition-colors ${
-                activeTab === 'payments'
-                  ? 'border-blue-500 text-blue-600'
-                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-              }`}
-            >
-              Historial de Pagos ({payments.length})
-            </button>
-          </nav>
-        </div>
-
-        <div className="p-6">
-          {/* Search */}
-          <div className="mb-6">
+      {/* Filters */}
+      <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4">
+        <div className="flex flex-col sm:flex-row sm:items-center space-y-4 sm:space-y-0 sm:space-x-4">
+          <div className="flex-1">
             <div className="relative">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
               <input
                 type="text"
-                placeholder={activeTab === 'debts' ? "Buscar por chofer o placa..." : "Buscar por chofer..."}
+                placeholder="Buscar pagos..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               />
             </div>
           </div>
-
-          {activeTab === 'debts' && (
-            <div className="space-y-4">
-              {filteredDebts.map((debt) => (
-                <div key={debt.id} className={`border rounded-lg p-4 ${
-                  debt.isVehicleInactive ? 'border-red-200 bg-red-50' : 'border-gray-200 bg-white'
-                } hover:shadow-md transition-shadow`}>
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center space-x-4">
-                      <div className={`w-12 h-12 rounded-full flex items-center justify-center ${
-                        debt.isVehicleInactive ? 'bg-red-100' : 'bg-blue-100'
-                      }`}>
-                        <User className={`w-6 h-6 ${
-                          debt.isVehicleInactive ? 'text-red-600' : 'text-blue-600'
-                        }`} />
-                      </div>
-                      <div>
-                        <h3 className="font-semibold text-gray-900">{debt.driverId}</h3>
-                        <div className="flex items-center space-x-2 text-sm text-gray-600">
-                          <Car className="w-4 h-4" />
-                          <span>{debt.vehiclePlate}</span>
-                        </div>
-                        {debt.notes && (
-                          <p className="text-sm text-red-600 mt-1">{debt.notes}</p>
-                        )}
-                      </div>
-                    </div>
-                    <div className="text-right">
-                      <p className="text-2xl font-bold text-gray-900">RD${debt.amount.toLocaleString()}</p>
-                      <div className="flex items-center space-x-2 text-sm">
-                        <Calendar className="w-4 h-4 text-gray-400" />
-                        <span className={`${
-                          new Date(debt.dueDate) < new Date() ? 'text-red-600' : 'text-gray-600'
-                        }`}>
-                          Vence: {new Date(debt.dueDate).toLocaleDateString('es-ES')}
-                        </span>
-                      </div>
-                      <div className="flex space-x-2 mt-2">
-                        <button className="px-3 py-1 bg-green-600 text-white text-sm rounded hover:bg-green-700 transition-colors">
-                          Pago Completo
-                        </button>
-                        <button className="px-3 py-1 bg-yellow-600 text-white text-sm rounded hover:bg-yellow-700 transition-colors">
-                          Pago Parcial
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-
-          {activeTab === 'payments' && (
-            <div className="overflow-x-auto">
-              <table className="w-full">
-                <thead className="bg-gray-50 border-b border-gray-200">
-                  <tr>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Fecha
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Chofer
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Tipo
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Monto
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Ahorro Diario
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Acciones
-                    </th>
-                  </tr>
-                </thead>
-                <tbody className="bg-white divide-y divide-gray-200">
-                  {filteredPayments.map((payment) => (
-                    <tr key={payment.id} className="hover:bg-gray-50">
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                        {new Date(payment.date).toLocaleDateString('es-ES')}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                        {payment.driverId}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
-                          payment.type === 'complete' 
-                            ? 'bg-green-100 text-green-800' 
-                            : 'bg-yellow-100 text-yellow-800'
-                        }`}>
-                          {payment.type === 'complete' ? 'Completo' : 'Parcial'}
-                        </span>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm font-semibold text-gray-900">
-                        RD${payment.amount.toLocaleString()}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                        RD${payment.dailySavings.toLocaleString()}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                        <div className="flex space-x-2">
-                          <button className="text-blue-600 hover:text-blue-700">
-                            <Edit2 className="w-4 h-4" />
-                          </button>
-                          <button className="text-red-600 hover:text-red-700">
-                            <Trash2 className="w-4 h-4" />
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-
-          {((activeTab === 'debts' && filteredDebts.length === 0) || 
-            (activeTab === 'payments' && filteredPayments.length === 0)) && (
-            <div className="text-center py-12">
-              {activeTab === 'debts' ? (
-                <CheckCircle className="w-16 h-16 text-gray-300 mx-auto mb-4" />
-              ) : (
-                <DollarSign className="w-16 h-16 text-gray-300 mx-auto mb-4" />
-              )}
-              <h3 className="text-lg font-medium text-gray-900 mb-2">
-                {activeTab === 'debts' 
-                  ? (searchTerm ? 'No se encontraron deudas' : 'No hay deudas pendientes')
-                  : (searchTerm ? 'No se encontraron pagos' : 'No hay pagos registrados')
-                }
-              </h3>
-              <p className="text-gray-500">
-                {searchTerm 
-                  ? 'Intenta con otros términos de búsqueda'
-                  : activeTab === 'debts' 
-                    ? '¡Excelente! Todos los pagos están al día'
-                    : 'Los pagos aparecerán aquí una vez registrados'
-                }
-              </p>
-            </div>
-          )}
+          <select
+            value={statusFilter}
+            onChange={(e) => setStatusFilter(e.target.value)}
+            className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+          >
+            <option value="all">Todos los estados</option>
+            <option value="completed">Completado</option>
+            <option value="pending">Pendiente</option>
+            <option value="failed">Fallido</option>
+            <option value="cancelled">Cancelado</option>
+          </select>
+          <select
+            value={typeFilter}
+            onChange={(e) => setTypeFilter(e.target.value)}
+            className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+          >
+            <option value="all">Todos los tipos</option>
+            <option value="payment">Pago</option>
+            <option value="deposit">Depósito</option>
+            <option value="penalty">Penalización</option>
+            <option value="refund">Reembolso</option>
+          </select>
         </div>
       </div>
+
+      {/* Payments List */}
+      <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+        <div className="overflow-x-auto">
+          <table className="w-full">
+            <thead className="bg-gray-50 border-b border-gray-200">
+              <tr>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Pago
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Conductor
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Monto
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Método
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Estado
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Acciones
+                </th>
+              </tr>
+            </thead>
+            <tbody className="bg-white divide-y divide-gray-200">
+              {filteredPayments.map((payment) => (
+                <tr key={payment.id} className="hover:bg-gray-50">
+                  <td className="px-6 py-4 whitespace-nowrap">
+                    <div className="flex items-center">
+                      <div className="w-10 h-10 bg-emerald-500 rounded-lg flex items-center justify-center">
+                        <DollarSign className="w-5 h-5 text-white" />
+                      </div>
+                      <div className="ml-4">
+                        <div className="text-sm font-medium text-gray-900">
+                          {payment.reference}
+                        </div>
+                        <div className="text-sm text-gray-500">
+                          {formatDate(payment.date)}
+                        </div>
+                      </div>
+                    </div>
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap">
+                    <div className="text-sm font-medium text-gray-900">
+                      {payment.driver.firstName} {payment.driver.lastName}
+                    </div>
+                    <div className="text-sm text-gray-500">
+                      {payment.driver.cedula}
+                    </div>
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap">
+                    <div className="text-sm font-medium text-gray-900">
+                      {formatCurrency(payment.amount)}
+                    </div>
+                    <div className="text-sm text-gray-500">
+                      {getTypeLabel(payment.type)}
+                    </div>
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap">
+                    <div className="flex items-center space-x-2">
+                      {getMethodIcon(payment.method)}
+                      <span className="text-sm text-gray-900">
+                        {getMethodLabel(payment.method)}
+                      </span>
+                    </div>
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap">
+                    <div className="flex flex-col space-y-1">
+                      <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(payment.status)}`}>
+                        {getStatusLabel(payment.status)}
+                      </span>
+                      <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${getTypeColor(payment.type)}`}>
+                        {getTypeLabel(payment.type)}
+                      </span>
+                    </div>
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                    <div className="flex items-center space-x-2">
+                      <button
+                        onClick={() => handleEdit(payment)}
+                        className="text-blue-600 hover:text-blue-900"
+                        title="Editar"
+                      >
+                        <Edit className="w-4 h-4" />
+                      </button>
+                      <button
+                        onClick={() => handleDelete(payment.id)}
+                        className="text-red-600 hover:text-red-900"
+                        title="Eliminar"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      {/* Form Modal */}
+      {showForm && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-xl p-6 max-w-4xl w-full mx-4 max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="text-xl font-semibold text-gray-900">
+                {editingPayment ? 'Editar Pago' : 'Nuevo Pago'}
+              </h2>
+              <button
+                onClick={() => setShowForm(false)}
+                className="text-gray-500 hover:text-gray-700"
+              >
+                <XCircle className="w-6 h-6" />
+              </button>
+            </div>
+
+            <form onSubmit={handleSubmit} className="space-y-6">
+              {/* Contract and Driver Selection */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Contrato *
+                  </label>
+                  <select
+                    value={formData.contractId}
+                    onChange={(e) => setFormData({...formData, contractId: e.target.value})}
+                    className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 ${
+                      errors.contractId ? 'border-red-500' : 'border-gray-300'
+                    }`}
+                  >
+                    <option value="">Seleccionar contrato</option>
+                    {contracts.map((contract) => (
+                      <option key={contract.id} value={contract.id}>
+                        Contrato #{contract.id} - {contract.rate} RD$/{contract.rateType}
+                      </option>
+                    ))}
+                  </select>
+                  {errors.contractId && (
+                    <p className="text-red-500 text-sm mt-1">{errors.contractId}</p>
+                  )}
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Conductor *
+                  </label>
+                  <select
+                    value={formData.driverId}
+                    onChange={(e) => setFormData({...formData, driverId: e.target.value})}
+                    className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 ${
+                      errors.driverId ? 'border-red-500' : 'border-gray-300'
+                    }`}
+                  >
+                    <option value="">Seleccionar conductor</option>
+                    {drivers.map((driver) => (
+                      <option key={driver.id} value={driver.id}>
+                        {driver.firstName} {driver.lastName} - {driver.cedula}
+                      </option>
+                    ))}
+                  </select>
+                  {errors.driverId && (
+                    <p className="text-red-500 text-sm mt-1">{errors.driverId}</p>
+                  )}
+                </div>
+              </div>
+
+              {/* Payment Details */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Monto (RD$) *
+                  </label>
+                  <input
+                    type="number"
+                    value={formData.amount}
+                    onChange={(e) => setFormData({...formData, amount: Number(e.target.value)})}
+                    className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 ${
+                      errors.amount ? 'border-red-500' : 'border-gray-300'
+                    }`}
+                    placeholder="3200"
+                    min="0"
+                    step="0.01"
+                  />
+                  {errors.amount && (
+                    <p className="text-red-500 text-sm mt-1">{errors.amount}</p>
+                  )}
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Tipo de Pago
+                  </label>
+                  <select
+                    value={formData.type}
+                    onChange={(e) => setFormData({...formData, type: e.target.value as any})}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                  >
+                    <option value="payment">Pago</option>
+                    <option value="deposit">Depósito</option>
+                    <option value="penalty">Penalización</option>
+                    <option value="refund">Reembolso</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Estado
+                  </label>
+                  <select
+                    value={formData.status}
+                    onChange={(e) => setFormData({...formData, status: e.target.value as any})}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                  >
+                    <option value="pending">Pendiente</option>
+                    <option value="completed">Completado</option>
+                    <option value="failed">Fallido</option>
+                    <option value="cancelled">Cancelado</option>
+                  </select>
+                </div>
+              </div>
+
+              {/* Payment Method and Dates */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Método de Pago
+                  </label>
+                  <select
+                    value={formData.method}
+                    onChange={(e) => setFormData({...formData, method: e.target.value as any})}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                  >
+                    <option value="cash">Efectivo</option>
+                    <option value="bank_transfer">Transferencia Bancaria</option>
+                    <option value="credit_card">Tarjeta de Crédito</option>
+                    <option value="debit_card">Tarjeta de Débito</option>
+                    <option value="mobile_payment">Pago Móvil</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Fecha de Pago *
+                  </label>
+                  <input
+                    type="date"
+                    value={formData.date}
+                    onChange={(e) => setFormData({...formData, date: e.target.value})}
+                    className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 ${
+                      errors.date ? 'border-red-500' : 'border-gray-300'
+                    }`}
+                  />
+                  {errors.date && (
+                    <p className="text-red-500 text-sm mt-1">{errors.date}</p>
+                  )}
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Fecha de Vencimiento
+                  </label>
+                  <input
+                    type="date"
+                    value={formData.dueDate}
+                    onChange={(e) => setFormData({...formData, dueDate: e.target.value})}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+              </div>
+
+              {/* Description and Reference */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Descripción *
+                  </label>
+                  <input
+                    type="text"
+                    value={formData.description}
+                    onChange={(e) => setFormData({...formData, description: e.target.value})}
+                    className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 ${
+                      errors.description ? 'border-red-500' : 'border-gray-300'
+                    }`}
+                    placeholder="Pago semanal de renta"
+                  />
+                  {errors.description && (
+                    <p className="text-red-500 text-sm mt-1">{errors.description}</p>
+                  )}
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Referencia
+                  </label>
+                  <input
+                    type="text"
+                    value={formData.reference}
+                    onChange={(e) => setFormData({...formData, reference: e.target.value})}
+                    className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 ${
+                      errors.reference ? 'border-red-500' : 'border-gray-300'
+                    }`}
+                    placeholder="REF-001"
+                  />
+                  {errors.reference && (
+                    <p className="text-red-500 text-sm mt-1">{errors.reference}</p>
+                  )}
+                </div>
+              </div>
+
+              {/* Notes */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Notas Adicionales
+                </label>
+                <textarea
+                  value={formData.notes}
+                  onChange={(e) => setFormData({...formData, notes: e.target.value})}
+                  rows={3}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                  placeholder="Información adicional sobre el pago..."
+                />
+              </div>
+
+              {/* Form Actions */}
+              <div className="flex items-center justify-end space-x-3 pt-6 border-t border-gray-200">
+                <button
+                  type="button"
+                  onClick={() => setShowForm(false)}
+                  className="px-4 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  disabled={isSubmitting}
+                  className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50"
+                >
+                  {isSubmitting ? 'Guardando...' : (editingPayment ? 'Actualizar' : 'Crear')}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

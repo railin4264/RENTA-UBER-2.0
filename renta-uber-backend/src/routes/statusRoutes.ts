@@ -1,8 +1,180 @@
-import { Router } from 'express';
-import { getStatusesByModule } from '../controllers/statusController';
+import express from 'express';
+import { PrismaClient } from '@prisma/client';
 
-const router = Router();
+const router = express.Router();
+const prisma = new PrismaClient();
 
-router.get('/:module', getStatusesByModule);
+// GET /api/statuses - Obtener todos los estados
+router.get('/', async (req, res) => {
+  try {
+    const statuses = await prisma.status.findMany({
+      orderBy: {
+        module: 'asc',
+        name: 'asc'
+      }
+    });
+
+    res.json(statuses);
+  } catch (error) {
+    console.error('Error fetching statuses:', error);
+    res.status(500).json({ error: 'Error interno del servidor' });
+  }
+});
+
+// GET /api/statuses/:module - Obtener estados por módulo
+router.get('/:module', async (req, res) => {
+  try {
+    const { module } = req.params;
+    const statuses = await prisma.status.findMany({
+      where: { module },
+      orderBy: {
+        name: 'asc'
+      }
+    });
+
+    res.json(statuses);
+  } catch (error) {
+    console.error('Error fetching statuses by module:', error);
+    res.status(500).json({ error: 'Error interno del servidor' });
+  }
+});
+
+// POST /api/statuses - Crear nuevo estado
+router.post('/', async (req, res) => {
+  try {
+    const statusData = req.body;
+    
+    // Verificar si ya existe un estado con el mismo nombre en el módulo
+    const existingStatus = await prisma.status.findFirst({
+      where: {
+        name: statusData.name,
+        module: statusData.module
+      }
+    });
+
+    if (existingStatus) {
+      return res.status(400).json({ 
+        error: 'Ya existe un estado con este nombre en el módulo' 
+      });
+    }
+
+    const status = await prisma.status.create({
+      data: {
+        ...statusData,
+        createdAt: new Date()
+      }
+    });
+
+    res.status(201).json(status);
+  } catch (error) {
+    console.error('Error creating status:', error);
+    res.status(500).json({ error: 'Error interno del servidor' });
+  }
+});
+
+// PUT /api/statuses/:id - Actualizar estado
+router.put('/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const statusData = req.body;
+
+    const existingStatus = await prisma.status.findUnique({
+      where: { id }
+    });
+
+    if (!existingStatus) {
+      return res.status(404).json({ error: 'Estado no encontrado' });
+    }
+
+    // Verificar si el nuevo nombre ya existe en el módulo
+    if (statusData.name && statusData.name !== existingStatus.name) {
+      const duplicateStatus = await prisma.status.findFirst({
+        where: {
+          name: statusData.name,
+          module: statusData.module,
+          id: { not: id }
+        }
+      });
+
+      if (duplicateStatus) {
+        return res.status(400).json({ 
+          error: 'Ya existe un estado con este nombre en el módulo' 
+        });
+      }
+    }
+
+    const updatedStatus = await prisma.status.update({
+      where: { id },
+      data: {
+        ...statusData,
+        updatedAt: new Date()
+      }
+    });
+
+    res.json(updatedStatus);
+  } catch (error) {
+    console.error('Error updating status:', error);
+    res.status(500).json({ error: 'Error interno del servidor' });
+  }
+});
+
+// DELETE /api/statuses/:id - Eliminar estado
+router.delete('/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const status = await prisma.status.findUnique({
+      where: { id }
+    });
+
+    if (!status) {
+      return res.status(404).json({ error: 'Estado no encontrado' });
+    }
+
+    // Verificar si el estado está en uso
+    const isInUse = await checkStatusUsage(status.module, id);
+    
+    if (isInUse) {
+      return res.status(400).json({ 
+        error: 'No se puede eliminar un estado que está en uso' 
+      });
+    }
+
+    await prisma.status.delete({
+      where: { id }
+    });
+
+    res.json({ message: 'Estado eliminado exitosamente' });
+  } catch (error) {
+    console.error('Error deleting status:', error);
+    res.status(500).json({ error: 'Error interno del servidor' });
+  }
+});
+
+// Función auxiliar para verificar si un estado está en uso
+async function checkStatusUsage(module: string, statusId: string): Promise<boolean> {
+  switch (module) {
+    case 'driver':
+      const driverCount = await prisma.driver.count({
+        where: { statusId }
+      });
+      return driverCount > 0;
+
+    case 'vehicle':
+      const vehicleCount = await prisma.vehicle.count({
+        where: { statusId }
+      });
+      return vehicleCount > 0;
+
+    case 'contract':
+      const contractCount = await prisma.contract.count({
+        where: { statusId }
+      });
+      return contractCount > 0;
+
+    default:
+      return false;
+  }
+}
 
 export default router;

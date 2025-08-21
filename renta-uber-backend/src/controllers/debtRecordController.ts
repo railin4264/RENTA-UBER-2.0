@@ -1,8 +1,22 @@
 import { Request, Response } from 'express';
+import { PrismaClient } from '@prisma/client';
 import * as debtRecordService from '../services/debtRecordService';
+
+const prisma = new PrismaClient();
 
 export const createDebtRecord = async (req: Request, res: Response) => {
   try {
+    const { driverId, vehiclePlate, amount, dueDate } = req.body;
+    if (!driverId || !vehiclePlate || !amount || !dueDate) {
+      return res.status(400).json({ message: 'driverId, vehiclePlate, amount, and dueDate are required' });
+    }
+    
+    // Verificar que el driver exista
+    const driver = await prisma.driver.findUnique({ where: { id: driverId } });
+    if (!driver) {
+      return res.status(400).json({ message: 'Invalid driverId' });
+    }
+    
     const newDebt = await debtRecordService.createDebtRecord(req.body);
     res.status(201).json(newDebt);
   } catch (error) {

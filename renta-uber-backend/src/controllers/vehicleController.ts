@@ -1,71 +1,149 @@
 import { Request, Response } from 'express';
-import { PrismaClient } from '@prisma/client';
+import * as vehicleService from '../services/vehicleService';
+import { asyncHandler } from '../utils/errorHandler';
 
-const prisma = new PrismaClient();
+// Obtener todos los vehículos
+export const getAllVehicles = asyncHandler(async (req: Request, res: Response) => {
+  const vehicles = await vehicleService.getAllVehicles();
+  
+  res.json({
+    success: true,
+    data: vehicles,
+    count: vehicles.length
+  });
+});
 
-export const createVehicle = async (req: Request, res: Response) => {
-  try {
-    const data = req.body;
-    if (!data.model || !data.plate || !data.statusId) {
-      return res.status(400).json({ message: 'Model, plate and statusId are required' });
-    }
-    // Verifica que el status exista
-    const status = await prisma.status.findUnique({ where: { id: data.statusId } });
-    if (!status) {
-      return res.status(400).json({ message: 'Invalid statusId' });
-    }
-    const vehicle = await prisma.vehicle.create({ data });
-    res.status(201).json(vehicle);
-  } catch (error) {
-    res.status(400).json({ message: (error as Error).message });
-  }
-};
-
-export const getVehicles = async (_req: Request, res: Response) => {
-  try {
-    const vehicles = await prisma.vehicle.findMany({ include: { status: true } });
-    res.status(200).json(vehicles);
-  } catch (error) {
-    res.status(500).json({ message: (error as Error).message });
-  }
-};
-
-export const getVehicleById = async (req: Request, res: Response) => {
-  try {
-    const vehicle = await prisma.vehicle.findUnique({
-      where: { id: req.params.id },
-      include: { status: true }
+// Obtener vehículo por ID
+export const getVehicleById = asyncHandler(async (req: Request, res: Response) => {
+  const vehicle = await vehicleService.getVehicleById(req.params.id);
+  
+  if (!vehicle) {
+    return res.status(404).json({
+      success: false,
+      message: 'Vehículo no encontrado'
     });
-    if (!vehicle) {
-      return res.status(404).json({ message: 'Vehicle not found' });
-    }
-    res.status(200).json(vehicle);
-  } catch (error) {
-    res.status(500).json({ message: (error as Error).message });
   }
-};
+  
+  res.json({
+    success: true,
+    data: vehicle
+  });
+});
 
-export const updateVehicle = async (req: Request, res: Response) => {
-  try {
-    const data = req.body;
-    if (!data.model || !data.plate) {
-      return res.status(400).json({ message: 'Both model and plate are required' });
-    }
-    const vehicle = await prisma.vehicle.update({
-      where: { id: req.params.id },
-      data
+// Crear nuevo vehículo
+export const createVehicle = asyncHandler(async (req: Request, res: Response) => {
+  const { model, plate } = req.body;
+  
+  if (!model || !plate) {
+    return res.status(400).json({
+      success: false,
+      message: 'Modelo y placa son requeridos'
     });
-    res.status(200).json(vehicle);
-  } catch (error) {
-    res.status(400).json({ message: (error as Error).message });
   }
-};
+  
+  const newVehicle = await vehicleService.createVehicle(req.body);
+  
+  res.status(201).json({
+    success: true,
+    message: 'Vehículo creado exitosamente',
+    data: newVehicle
+  });
+});
 
-export const deleteVehicle = async (req: Request, res: Response) => {
-  try {
-    await prisma.vehicle.delete({ where: { id: req.params.id } });
-    res.status(204).send();
-  } catch (error) {
-    res.status(500).json({ message: (error as Error).message }); 
+// Actualizar vehículo
+export const updateVehicle = asyncHandler(async (req: Request, res: Response) => {
+  const updated = await vehicleService.updateVehicle(req.params.id, req.body);
+  
+  res.json({
+    success: true,
+    message: 'Vehículo actualizado exitosamente',
+    data: updated
+  });
+});
+
+// Eliminar vehículo
+export const deleteVehicle = asyncHandler(async (req: Request, res: Response) => {
+  await vehicleService.deleteVehicle(req.params.id);
+  
+  res.json({
+    success: true,
+    message: 'Vehículo eliminado exitosamente'
+  });
+});
+
+// Buscar vehículos
+export const searchVehicles = asyncHandler(async (req: Request, res: Response) => {
+  const { query } = req.query;
+  
+  if (!query || typeof query !== 'string') {
+    return res.status(400).json({
+      success: false,
+      message: 'Query de búsqueda requerida'
+    });
   }
-};
+  
+  const vehicles = await vehicleService.searchVehicles(query);
+  
+  res.json({
+    success: true,
+    data: vehicles,
+    count: vehicles.length
+  });
+});
+
+// Obtener vehículos por estado
+export const getVehiclesByStatus = asyncHandler(async (req: Request, res: Response) => {
+  const { statusId } = req.params;
+  
+  const vehicles = await vehicleService.getVehiclesByStatus(statusId);
+  
+  res.json({
+    success: true,
+    data: vehicles,
+    count: vehicles.length
+  });
+});
+
+// Obtener estadísticas de vehículos
+export const getVehicleStats = asyncHandler(async (req: Request, res: Response) => {
+  const stats = await vehicleService.getVehicleStats();
+  
+  res.json({
+    success: true,
+    data: stats
+  });
+});
+
+// Obtener vehículos en mantenimiento
+export const getVehiclesInMaintenance = asyncHandler(async (req: Request, res: Response) => {
+  const vehicles = await vehicleService.getVehiclesInMaintenance();
+  
+  res.json({
+    success: true,
+    data: vehicles,
+    count: vehicles.length
+  });
+});
+
+// Subir foto del vehículo
+export const uploadVehiclePhoto = asyncHandler(async (req: Request, res: Response) => {
+  const { id } = req.params;
+  const photoUrl = req.file?.filename;
+  
+  if (!photoUrl) {
+    return res.status(400).json({
+      success: false,
+      message: 'No se proporcionó ninguna imagen'
+    });
+  }
+  
+  const updatedVehicle = await vehicleService.updateVehicle(id, {
+    photos: photoUrl
+  });
+  
+  res.json({
+    success: true,
+    message: 'Foto subida exitosamente',
+    data: updatedVehicle
+  });
+});

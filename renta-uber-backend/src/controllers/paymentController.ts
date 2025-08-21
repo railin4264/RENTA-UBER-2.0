@@ -1,70 +1,167 @@
 import { Request, Response } from 'express';
-import {
-  createPayment as createPaymentService,
-  getPayments as getPaymentsService,
-  getPaymentById as getPaymentByIdService,
-  updatePayment as updatePaymentService,
-  deletePayment as deletePaymentService
-} from '../services/paymentService';
+import * as paymentService from '../services/paymentService';
+import { asyncHandler } from '../utils/errorHandler';
 
-export const createPayment = async (req: Request, res: Response) => {
-  try {
-    const paymentData = req.body;
-    const newPayment = await createPaymentService(paymentData);
-    res.status(201).json(newPayment);
-  } catch (error) {
-    res.status(500).json({ message: 'Error creating payment', error });
-  }
-};
+// Obtener todos los pagos
+export const getAllPayments = asyncHandler(async (req: Request, res: Response) => {
+  const payments = await paymentService.getAllPayments();
+  
+  res.json({
+    success: true,
+    data: payments,
+    count: payments.length
+  });
+});
 
-export const getPayments = async (_req: Request, res: Response) => {
-  try {
-    const payments = await getPaymentsService();
-    res.status(200).json(payments);
-  } catch (error) {
-    res.status(500).json({ message: 'Error fetching payments', error });
+// Obtener pago por ID
+export const getPaymentById = asyncHandler(async (req: Request, res: Response) => {
+  const payment = await paymentService.getPaymentById(req.params.id);
+  
+  if (!payment) {
+    return res.status(404).json({
+      success: false,
+      message: 'Pago no encontrado'
+    });
   }
-};
+  
+  res.json({
+    success: true,
+    data: payment
+  });
+});
 
-export const getPaymentById = async (req: Request, res: Response) => {
-  try {
-    const paymentId = req.params.id;
-    const payment = await getPaymentByIdService(paymentId);
-    if (payment) {
-      res.status(200).json(payment);
-    } else {
-      res.status(404).json({ message: 'Payment not found' });
-    }
-  } catch (error) {
-    res.status(500).json({ message: 'Error fetching payment', error });
+// Crear nuevo pago
+export const createPayment = asyncHandler(async (req: Request, res: Response) => {
+  const { driverId, amount, type, date } = req.body;
+  
+  if (!driverId || !amount || !type || !date) {
+    return res.status(400).json({
+      success: false,
+      message: 'Conductor, monto, tipo y fecha son requeridos'
+    });
   }
-};
+  
+  const newPayment = await paymentService.createPayment(req.body);
+  
+  res.status(201).json({
+    success: true,
+    message: 'Pago creado exitosamente',
+    data: newPayment
+  });
+});
 
-export const updatePayment = async (req: Request, res: Response) => {
-  try {
-    const paymentId = req.params.id;
-    const paymentData = req.body;
-    const updatedPayment = await updatePaymentService(paymentId, paymentData);
-    if (updatedPayment) {
-      res.status(200).json(updatedPayment);
-    } else {
-      res.status(404).json({ message: 'Payment not found' });
-    }
-  } catch (error) {
-    res.status(500).json({ message: 'Error updating payment', error });
-  }
-};
+// Actualizar pago
+export const updatePayment = asyncHandler(async (req: Request, res: Response) => {
+  const updated = await paymentService.updatePayment(req.params.id, req.body);
+  
+  res.json({
+    success: true,
+    message: 'Pago actualizado exitosamente',
+    data: updated
+  });
+});
 
-export const deletePayment = async (req: Request, res: Response) => {
-  try {
-    const paymentId = req.params.id;
-    const deletedPayment = await deletePaymentService(paymentId);
-    if (deletedPayment) {
-      res.status(204).send();
-    } else {
-      res.status(404).json({ message: 'Payment not found' });
-    }
-  } catch (error) {
-    res.status(500).json({ message: 'Error deleting payment', error });
+// Eliminar pago
+export const deletePayment = asyncHandler(async (req: Request, res: Response) => {
+  await paymentService.deletePayment(req.params.id);
+  
+  res.json({
+    success: true,
+    message: 'Pago eliminado exitosamente'
+  });
+});
+
+// Obtener pagos por conductor
+export const getPaymentsByDriver = asyncHandler(async (req: Request, res: Response) => {
+  const { driverId } = req.params;
+  
+  const payments = await paymentService.getPaymentsByDriver(driverId);
+  
+  res.json({
+    success: true,
+    data: payments,
+    count: payments.length
+  });
+});
+
+// Obtener pagos por contrato
+export const getPaymentsByContract = asyncHandler(async (req: Request, res: Response) => {
+  const { contractId } = req.params;
+  
+  const payments = await paymentService.getPaymentsByContract(contractId);
+  
+  res.json({
+    success: true,
+    data: payments,
+    count: payments.length
+  });
+});
+
+// Obtener pagos por estado
+export const getPaymentsByStatus = asyncHandler(async (req: Request, res: Response) => {
+  const { status } = req.params;
+  
+  const payments = await paymentService.getPaymentsByStatus(status);
+  
+  res.json({
+    success: true,
+    data: payments,
+    count: payments.length
+  });
+});
+
+// Obtener pagos por tipo
+export const getPaymentsByType = asyncHandler(async (req: Request, res: Response) => {
+  const { type } = req.params;
+  
+  const payments = await paymentService.getPaymentsByType(type);
+  
+  res.json({
+    success: true,
+    data: payments,
+    count: payments.length
+  });
+});
+
+// Obtener estadísticas de pagos
+export const getPaymentStats = asyncHandler(async (req: Request, res: Response) => {
+  const stats = await paymentService.getPaymentStats();
+  
+  res.json({
+    success: true,
+    data: stats
+  });
+});
+
+// Obtener pagos mensuales
+export const getMonthlyPayments = asyncHandler(async (req: Request, res: Response) => {
+  const { year, month } = req.params;
+  
+  const payments = await paymentService.getMonthlyPayments(parseInt(year), parseInt(month));
+  
+  res.json({
+    success: true,
+    data: payments,
+    count: payments.length
+  });
+});
+
+// Buscar pagos
+export const searchPayments = asyncHandler(async (req: Request, res: Response) => {
+  const { query } = req.query;
+  
+  if (!query || typeof query !== 'string') {
+    return res.status(400).json({
+      success: false,
+      message: 'Query de búsqueda requerida'
+    });
   }
-};
+  
+  const payments = await paymentService.searchPayments(query);
+  
+  res.json({
+    success: true,
+    data: payments,
+    count: payments.length
+  });
+});

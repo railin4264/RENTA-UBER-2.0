@@ -1,189 +1,400 @@
-import { useEffect, useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
+  Users,
   Plus,
   Search,
-  Phone,
-  MapPin,
-  Calendar,
-  Car,
-  User,
-  Users,
-  ExternalLink,
-  Edit2,
+  Edit,
   Trash2,
-  Eye
+  Eye,
+  Filter,
+  Download,
+  Upload,
+  AlertTriangle,
+  CheckCircle,
+  XCircle,
+  Phone,
+  Mail,
+  IdCard,
+  Car,
+  Calendar,
+  MapPin,
+  Shield,
+  FileText,
+  X
 } from 'lucide-react';
-import type { Driver, Vehicle } from '../types';
+import { toast } from 'react-hot-toast';
+import { useAuth } from '../context/AuthContext';
+import DeleteConfirmationModal from './DeleteConfirmationModal';
 
-type Guarantor = {
+interface Driver {
+  id: string;
   firstName: string;
   lastName: string;
   cedula: string;
-  address: string;
-  googleMapsLink: string;
-  workplace: string;
   phone: string;
-  photo: string;
-  cedulaPhoto: string;
-};
+  email: string;
+  license: string;
+  licenseExpiry: string;
+  address: string;
+  emergencyContact: string;
+  emergencyPhone: string;
+  status: { id: string; name: string };
+  startDate: string;
+  salary: number;
+  commission: number;
+  notes: string;
+  documents: string[];
+  createdAt: string;
+  updatedAt: string;
+}
 
-type DriverWithGuarantors = Driver & {
-  guarantors?: Guarantor[];
-};
+interface DriverFormData {
+  firstName: string;
+  lastName: string;
+  cedula: string;
+  phone: string;
+  email: string;
+  license: string;
+  licenseExpiry: string;
+  address: string;
+  emergencyContact: string;
+  emergencyPhone: string;
+  statusId: string;
+  startDate: string;
+  salary: number;
+  commission: number;
+  notes: string;
+  photo?: File;
+  cedulaPhoto?: File;
+  licensePhoto?: File;
+  guarantors?: Array<{
+    firstName: string;
+    lastName: string;
+    cedula: string;
+    address: string;
+    phone: string;
+    workplace?: string;
+    googleMapsLink?: string;
+  }>;
+}
 
-type FormErrors = {
+interface ValidationErrors {
   [key: string]: string;
-};
+}
 
 export default function DriverManagement() {
-  const [drivers, setDrivers] = useState<DriverWithGuarantors[]>([]);
-  const [vehicles, setVehicles] = useState<Vehicle[]>([]);
+  const { getAuthHeaders } = useAuth();
+  const [drivers, setDrivers] = useState<Driver[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
+  const [editingDriver, setEditingDriver] = useState<Driver | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
-  const [loading, setLoading] = useState(false);
-
-  const [photoPreview, setPhotoPreview] = useState<string | null>(null);
-
-  const [formData, setFormData] = useState({
+  const [statusFilter, setStatusFilter] = useState('all');
+  const [formData, setFormData] = useState<DriverFormData>({
     firstName: '',
     lastName: '',
     cedula: '',
+    phone: '',
+    email: '',
     license: '',
-    startDate: '',
+    licenseExpiry: '',
     address: '',
-    googleMapsLink: '',
-    phone: '',
-    workplace: '',
-    vehicleId: '',
-    photo: '',
-    cedulaPhoto: '',
-    licensePhoto: '',
+    emergencyContact: '',
+    emergencyPhone: '',
+    statusId: '1',
+    startDate: '',
+    salary: 0,
+    commission: 0,
+    notes: '',
+    photo: undefined,
+    cedulaPhoto: undefined,
+    licensePhoto: undefined
   });
-
-  const [showGuarantor, setShowGuarantor] = useState(false);
-  const [guarantorData, setGuarantorData] = useState({
+  const [errors, setErrors] = useState<ValidationErrors>({});
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [includeGuarantor, setIncludeGuarantor] = useState(false);
+  const [guarantor, setGuarantor] = useState({
     firstName: '',
     lastName: '',
     cedula: '',
     address: '',
-    googleMapsLink: '',
-    workplace: '',
     phone: '',
-    photo: '',
-    cedulaPhoto: '',
+    workplace: '',
+    googleMapsLink: ''
   });
-
-  const [editingId, setEditingId] = useState<string | null>(null);
-  const [formErrors, setFormErrors] = useState<FormErrors>({});
-  const [selectedDriver, setSelectedDriver] = useState<DriverWithGuarantors | null>(null);
+  const [deleteModal, setDeleteModal] = useState<{
+    isOpen: boolean;
+    driverId: string | null;
+    message: string;
+    details: any[];
+  }>({
+    isOpen: false,
+    driverId: null,
+    message: '',
+    details: []
+  });
 
   useEffect(() => {
-    setLoading(true);
-    fetch('http://localhost:3002/api/drivers')
-      .then(res => res.json())
-      .then(data => {
-        setDrivers(data);
-        setLoading(false);
-      })
-      .catch(() => setLoading(false));
-    fetch('http://localhost:3002/api/vehicles')
-      .then(res => res.json())
-      .then(data => setVehicles(data));
+    loadDrivers();
   }, []);
 
-  useEffect(() => {
-    if (formData.photo) {
-      setPhotoPreview(`http://localhost:3002/uploads/${formData.photo}`);
-    } else {
-      setPhotoPreview(null);
-    }
-  }, [formData.photo]);
-
-  // Subida automática de imagen al backend con Multer
-  const handlePhotoChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files && e.target.files[0]) {
-      const file = e.target.files[0];
-      setPhotoPreview(URL.createObjectURL(file));
-      // Subir la imagen al backend
-      const formDataData = new FormData();
-      formDataData.append('photo', file);
-      try {
-        const res = await fetch('http://localhost:3002/api/upload', {
-          method: 'POST',
-          body: formDataData,
-        });
-        const data = await res.json();
-        setFormData(prev => ({ ...prev, photo: data.filename }));
-      } catch (err) {
-        alert('Error subiendo la imagen');
+  const loadDrivers = async () => {
+    try {
+      setIsLoading(true);
+      const response = await fetch('http://localhost:3001/api/drivers', {
+        headers: getAuthHeaders()
+      });
+      if (response.ok) {
+        const result = await response.json();
+        // El backend devuelve { success: true, data: [...], count: number }
+        const driversData = result.success && Array.isArray(result.data) ? result.data : [];
+        setDrivers(driversData);
+      } else {
+        setDrivers([]);
+        toast.error('No se pudieron cargar los conductores');
       }
+    } catch (error) {
+      console.error('Error cargando conductores:', error);
+      // En caso de error, establecer un array vacío
+      setDrivers([]);
+      toast.error('Error de conexión al cargar conductores');
+    } finally {
+      setIsLoading(false);
     }
   };
 
-  // Validaciones
-  const validateForm = () => {
-    const errors: FormErrors = {};
-    if (!formData.firstName.trim()) errors.firstName = 'El nombre es requerido';
-    if (!formData.lastName.trim()) errors.lastName = 'El apellido es requerido';
-    if (!/^\d{11,}$/.test(formData.cedula)) errors.cedula = 'Cédula inválida';
-    if (!formData.license.trim()) errors.license = 'Licencia requerida';
-    if (!formData.startDate) errors.startDate = 'Fecha requerida';
-    if (!formData.address.trim()) errors.address = 'Dirección requerida';
-    if (!/^\d{10,}$/.test(formData.phone)) errors.phone = 'Teléfono inválido';
-    if (showGuarantor || (editingId && guarantorData.firstName)) {
-      if (!guarantorData.firstName.trim()) errors.guarantorFirstName = 'Nombre garante requerido';
-      if (!guarantorData.lastName.trim()) errors.guarantorLastName = 'Apellido garante requerido';
-      if (!/^\d{11,}$/.test(guarantorData.cedula)) errors.guarantorCedula = 'Cédula garante inválida';
-      if (!guarantorData.address.trim()) errors.guarantorAddress = 'Dirección garante requerida';
-      if (!/^\d{10,}$/.test(guarantorData.phone)) errors.guarantorPhone = 'Teléfono garante inválido';
+  const validateForm = (): boolean => {
+    const newErrors: ValidationErrors = {};
+
+    // Validaciones requeridas
+    if (!formData.firstName.trim()) {
+      newErrors.firstName = 'El nombre es requerido';
+    } else if (formData.firstName.length < 2) {
+      newErrors.firstName = 'El nombre debe tener al menos 2 caracteres';
     }
-    setFormErrors(errors);
-    return Object.keys(errors).length === 0;
+
+    if (!formData.lastName.trim()) {
+      newErrors.lastName = 'El apellido es requerido';
+    } else if (formData.lastName.length < 2) {
+      newErrors.lastName = 'El apellido debe tener al menos 2 caracteres';
+    }
+
+    // Validación de cédula
+    if (!formData.cedula.trim()) {
+      newErrors.cedula = 'La cédula es requerida';
+    } else if (!/^\d{11}$/.test(formData.cedula)) {
+      newErrors.cedula = 'La cédula debe tener 11 dígitos';
+    }
+
+    // Validación de teléfono
+    if (!formData.phone.trim()) {
+      newErrors.phone = 'El teléfono es requerido';
+    } else if (!/^\d{3}-\d{3}-\d{4}$/.test(formData.phone)) {
+      newErrors.phone = 'El teléfono debe tener el formato 809-123-4567';
+    }
+
+    // Validación de email
+    if (!formData.email.trim()) {
+      newErrors.email = 'El email es requerido';
+    } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) {
+      newErrors.email = 'El email debe tener un formato válido';
+    }
+
+    // Validación de licencia
+    if (!formData.license.trim()) {
+      newErrors.license = 'La licencia es requerida';
+    } else if (formData.license.length < 6) {
+      newErrors.license = 'La licencia debe tener al menos 6 caracteres';
+    }
+
+    // Validación de fecha de vencimiento
+    if (!formData.licenseExpiry) {
+      newErrors.licenseExpiry = 'La fecha de vencimiento es requerida';
+    } else {
+      const expiryDate = new Date(formData.licenseExpiry);
+      const today = new Date();
+      if (expiryDate <= today) {
+        newErrors.licenseExpiry = 'La licencia no puede estar vencida';
+      }
+    }
+
+    // Validación de dirección
+    if (!formData.address?.trim()) {
+      newErrors.address = 'La dirección es requerida';
+    }
+
+    // Validación de contacto de emergencia
+    if (!formData.emergencyContact?.trim()) {
+      newErrors.emergencyContact = 'El contacto de emergencia es requerido';
+    }
+
+    if (!formData.emergencyPhone?.trim()) {
+      newErrors.emergencyPhone = 'El teléfono de emergencia es requerido';
+    } else if (!/^\d{3}-\d{3}-\d{4}$/.test(formData.emergencyPhone)) {
+      newErrors.emergencyPhone = 'El teléfono debe tener el formato 809-123-4567';
+    }
+
+    // Validación de salario
+    if (formData.salary <= 0) {
+      newErrors.salary = 'El salario debe ser mayor a 0';
+    }
+
+    // Validación de comisión
+    if (formData.commission < 0 || formData.commission > 100) {
+      newErrors.commission = 'La comisión debe estar entre 0 y 100%';
+    }
+
+    // Validación de fecha de inicio
+    if (!formData.startDate) {
+      newErrors.startDate = 'La fecha de inicio es requerida';
+    }
+
+    // Validación de garante si está habilitado
+    if (includeGuarantor) {
+      if (!guarantor.firstName.trim()) newErrors['guarantor.firstName'] = 'Nombre del garante requerido';
+      if (!guarantor.lastName.trim()) newErrors['guarantor.lastName'] = 'Apellido del garante requerido';
+      if (!/^\d{11}$/.test(guarantor.cedula || '')) newErrors['guarantor.cedula'] = 'Cédula del garante inválida';
+      if (!guarantor.address.trim()) newErrors['guarantor.address'] = 'Dirección del garante requerida';
+      if (!/^\d{3}-\d{3}-\d{4}$/.test(guarantor.phone || '')) newErrors['guarantor.phone'] = 'Teléfono del garante inválido';
+    }
+
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!validateForm()) return;
+    
+    if (!validateForm()) {
+      return;
+    }
 
-    const driverPayload: any = {
-      ...formData,
-      startDate: formData.startDate ? new Date(formData.startDate).toISOString() : null,
-      ...(showGuarantor && guarantorData.firstName
-        ? { guarantors: [{ ...guarantorData, photo: '', cedulaPhoto: '' }] }
-        : {}),
-    };
+    setIsSubmitting(true);
 
     try {
-      if (editingId) {
-        const res = await fetch(`http://localhost:3002/api/drivers/${editingId}`, {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(driverPayload),
-        });
-        if (!res.ok) {
-          alert('Error actualizando chofer');
-          return;
+      const url = editingDriver 
+        ? `http://localhost:3001/api/drivers/${editingDriver.id}`
+        : 'http://localhost:3001/api/drivers';
+      
+      const method = editingDriver ? 'PUT' : 'POST';
+
+      const bodyPayload: any = {
+        ...formData,
+        ...(includeGuarantor ? { guarantors: [guarantor] } : {})
+      };
+
+      const response = await fetch(url, {
+        method,
+        headers: {
+          'Content-Type': 'application/json',
+          ...getAuthHeaders()
+        },
+        body: JSON.stringify(bodyPayload),
+      });
+
+      const result = await response.json();
+
+      if (response.ok && result?.data?.id) {
+        const driverId = result.data.id;
+
+        // Upload profile photo if provided
+        if (formData.photo) {
+          const fd = new FormData();
+          fd.append('photo', formData.photo);
+          try {
+            const uploadRes = await fetch(`http://localhost:3001/api/drivers/${driverId}/photo`, {
+              method: 'POST',
+              headers: {
+                // Authorization must be sent, but NOT content-type for FormData
+                ...(getAuthHeaders().Authorization ? { Authorization: getAuthHeaders().Authorization } : {})
+              },
+              body: fd
+            });
+            if (!uploadRes.ok) {
+              const err = await uploadRes.json().catch(() => ({}));
+              toast.error(err?.message || 'Error al subir la foto de perfil');
+            }
+          } catch (err) {
+            toast.error('Error de conexión al subir la foto de perfil');
+          }
         }
-        const data = await res.json();
-        setDrivers(drivers.map(d => d.id === editingId ? data : d));
+
+        setShowForm(false);
+        setEditingDriver(null);
+        resetForm();
+        loadDrivers();
+        toast.success(editingDriver ? 'Conductor actualizado' : 'Conductor creado');
       } else {
-        const res = await fetch('http://localhost:3002/api/drivers', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(driverPayload),
-        });
-        if (!res.ok) {
-          alert('Error creando chofer');
-          return;
-        }
-        const data = await res.json();
-        setDrivers([...drivers, data]);
+        toast.error(result?.error || result?.message || 'Error al guardar el conductor');
       }
-      setShowForm(false);
-      resetForm();
-    } catch (err) {
-      alert('Error en la petición');
+    } catch (error) {
+      console.error('Error guardando conductor:', error);
+      toast.error('Error al guardar el conductor');
+    } finally {
+      setIsSubmitting(false);
     }
+  };
+
+  const handleEdit = (driver: Driver) => {
+    setEditingDriver(driver);
+    setFormData({
+      firstName: driver.firstName,
+      lastName: driver.lastName,
+      cedula: driver.cedula,
+      phone: driver.phone,
+      email: driver.email,
+      license: driver.license || '',
+      licenseExpiry: driver.licenseExpiry || '',
+      address: driver.address || '',
+      emergencyContact: driver.emergencyContact || '',
+      emergencyPhone: driver.emergencyPhone || '',
+      statusId: driver.status ? driver.status.id : '',
+      startDate: driver.startDate,
+      salary: driver.salary,
+      commission: driver.commission,
+      notes: driver.notes
+    });
+    setShowForm(true);
+  };
+
+  const handleDelete = async (id: string) => {
+    if (!confirm('¿Estás seguro de que quieres eliminar este conductor?')) {
+      return;
+    }
+
+    try {
+      const response = await fetch(`http://localhost:3001/api/drivers/${id}`, {
+        method: 'DELETE',
+        headers: getAuthHeaders()
+      });
+
+      const result = await response.json();
+
+      if (response.ok) {
+        toast.success('Conductor eliminado exitosamente');
+        loadDrivers();
+      } else {
+        // Mostrar modal con detalles del error
+        setDeleteModal({
+          isOpen: true,
+          driverId: id,
+          message: result.message,
+          details: result.details || []
+        });
+      }
+    } catch (error) {
+      console.error('Error eliminando conductor:', error);
+      toast.error('Error de conexión al eliminar el conductor');
+    }
+  };
+
+  const closeDeleteModal = () => {
+    setDeleteModal({
+      isOpen: false,
+      driverId: null,
+      message: '',
+      details: []
+    });
   };
 
   const resetForm = () => {
@@ -191,582 +402,622 @@ export default function DriverManagement() {
       firstName: '',
       lastName: '',
       cedula: '',
+      phone: '',
+      email: '',
       license: '',
+      licenseExpiry: '',
+      address: '',
+      emergencyContact: '',
+      emergencyPhone: '',
+      statusId: '1',
       startDate: '',
-      address: '',
-      googleMapsLink: '',
-      phone: '',
-      workplace: '',
-      vehicleId: '',
-      photo: '',
-      cedulaPhoto: '',
-      licensePhoto: '',
+      salary: 0,
+      commission: 0,
+      notes: '',
+      photo: undefined,
+      cedulaPhoto: undefined,
+      licensePhoto: undefined
     });
-    setGuarantorData({
-      firstName: '',
-      lastName: '',
-      cedula: '',
-      address: '',
-      googleMapsLink: '',
-      workplace: '',
-      phone: '',
-      photo: '',
-      cedulaPhoto: '',
-    });
-    setPhotoPreview(null);
-    setShowGuarantor(false);
-    setEditingId(null);
-    setFormErrors({});
+    setErrors({});
+    setIncludeGuarantor(false);
+    setGuarantor({ firstName: '', lastName: '', cedula: '', address: '', phone: '', workplace: '', googleMapsLink: '' });
   };
 
-  const filteredDrivers = drivers.filter(driver =>
-    (driver.firstName?.toLowerCase() || '').includes(searchTerm.toLowerCase()) ||
-    (driver.lastName?.toLowerCase() || '').includes(searchTerm.toLowerCase()) ||
-    (driver.license?.toLowerCase() || '').includes(searchTerm.toLowerCase())
-  );
+  const handlePhotoUpload = (e: React.ChangeEvent<HTMLInputElement>, type: 'photo' | 'cedula' | 'license') => {
+    const files = e.target.files;
+    if (!files) return;
 
-  const handleDelete = async (id: string) => {
-    if (!window.confirm('¿Seguro que deseas eliminar este chofer?')) return;
-    await fetch(`http://localhost:3002/api/drivers/${id}`, { method: 'DELETE' });
-    setDrivers(drivers.filter(d => d.id !== id));
+    setFormData({ ...formData, [type]: files[0] });
   };
 
-  const handleEdit = (driver: DriverWithGuarantors) => {
-    setEditingId(driver.id);
-    setShowForm(true);
-    setFormData({
-      firstName: driver.firstName || '',
-      lastName: driver.lastName || '',
-      cedula: driver.cedula || '',
-      license: driver.license || '',
-      startDate: driver.startDate ? driver.startDate.slice(0, 10) : '',
-      address: driver.address || '',
-      googleMapsLink: driver.googleMapsLink || '',
-      phone: driver.phone || '',
-      workplace: driver.workplace || '',
-      vehicleId: driver.vehicleId || '',
-      photo: driver.photo || '',
-      cedulaPhoto: driver.cedulaPhoto || '',
-      licensePhoto: driver.licensePhoto || '',
-    });
-
-    if (driver.guarantors && driver.guarantors.length > 0) {
-      setShowGuarantor(true);
-      setGuarantorData({
-        firstName: driver.guarantors[0].firstName || '',
-        lastName: driver.guarantors[0].lastName || '',
-        cedula: driver.guarantors[0].cedula || '',
-        address: driver.guarantors[0].address || '',
-        googleMapsLink: driver.guarantors[0].googleMapsLink || '',
-        workplace: driver.guarantors[0].workplace || '',
-        phone: driver.guarantors[0].phone || '',
-        photo: driver.guarantors[0].photo || '',
-        cedulaPhoto: driver.guarantors[0].cedulaPhoto || '',
-      });
-    } else {
-      setShowGuarantor(false);
-      setGuarantorData({
-        firstName: '',
-        lastName: '',
-        cedula: '',
-        address: '',
-        googleMapsLink: '',
-        workplace: '',
-        phone: '',
-        photo: '',
-        cedulaPhoto: '',
-      });
-    }
+  const removePhoto = (type: 'photo' | 'cedula' | 'license') => {
+    setFormData({ ...formData, [type]: undefined });
   };
 
-  // --- FORMULARIO ---
-  if (showForm) {
+  const filteredDrivers = Array.isArray(drivers) ? drivers.filter(driver => {
+    const matchesSearch = 
+      (driver.firstName && driver.firstName.toLowerCase().includes(searchTerm.toLowerCase())) ||
+      (driver.lastName && driver.lastName.toLowerCase().includes(searchTerm.toLowerCase())) ||
+      (driver.cedula && driver.cedula.includes(searchTerm)) ||
+      (driver.phone && driver.phone.includes(searchTerm));
+    
+    const matchesStatus = statusFilter === 'all' || (driver.status && driver.status.name === statusFilter);
+    
+    return matchesSearch && matchesStatus;
+  }) : [];
+
+  const formatCurrency = (amount: number) => {
+    return new Intl.NumberFormat('es-DO', {
+      style: 'currency',
+      currency: 'DOP'
+    }).format(amount);
+  };
+
+  const formatDate = (dateString: string) => {
+    return new Date(dateString).toLocaleDateString('es-ES');
+  };
+
+  if (isLoading) {
     return (
-      <div className="space-y-8">
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-3xl font-bold text-gray-900">
-              {editingId ? 'Editar Chofer' : 'Registrar Chofer'}
-            </h1>
-            <p className="text-gray-600 mt-1">Complete todos los datos del chofer y garante</p>
-          </div>
-          <button
-            onClick={() => { setShowForm(false); resetForm(); }}
-            className="px-4 py-2 text-gray-600 hover:text-gray-900 transition-colors"
-          >
-            Cancelar
-          </button>
+      <div className="flex items-center justify-center h-64">
+        <div className="flex items-center space-x-2">
+          <div className="w-6 h-6 border-2 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
+          <span className="text-gray-600">Cargando conductores...</span>
         </div>
-
-        <form onSubmit={handleSubmit} className="space-y-8">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div>
-              <label className="block text-sm font-medium text-gray-700">Nombre</label>
-              <input
-                type="text"
-                value={formData.firstName}
-                onChange={e => setFormData({ ...formData, firstName: e.target.value })}
-                className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm"
-                required
-              />
-              {formErrors.firstName && <p className="text-red-500 text-xs">{formErrors.firstName}</p>}
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700">Apellido</label>
-              <input
-                type="text"
-                value={formData.lastName}
-                onChange={e => setFormData({ ...formData, lastName: e.target.value })}
-                className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm"
-                required
-              />
-              {formErrors.lastName && <p className="text-red-500 text-xs">{formErrors.lastName}</p>}
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700">Cédula</label>
-              <input
-                type="text"
-                value={formData.cedula}
-                onChange={e => setFormData({ ...formData, cedula: e.target.value })}
-                className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm"
-                required
-                maxLength={13}
-              />
-              {formErrors.cedula && <p className="text-red-500 text-xs">{formErrors.cedula}</p>}
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700">Licencia</label>
-              <input
-                type="text"
-                value={formData.license}
-                onChange={e => setFormData({ ...formData, license: e.target.value })}
-                className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm"
-                required
-              />
-              {formErrors.license && <p className="text-red-500 text-xs">{formErrors.license}</p>}
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700">Fecha de inicio</label>
-              <input
-                type="date"
-                value={formData.startDate}
-                onChange={e => setFormData({ ...formData, startDate: e.target.value })}
-                className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm"
-                required
-              />
-              {formErrors.startDate && <p className="text-red-500 text-xs">{formErrors.startDate}</p>}
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700">Dirección</label>
-              <input
-                type="text"
-                value={formData.address}
-                onChange={e => setFormData({ ...formData, address: e.target.value })}
-                className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm"
-                required
-              />
-              {formErrors.address && <p className="text-red-500 text-xs">{formErrors.address}</p>}
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700">Google Maps</label>
-              <input
-                type="text"
-                value={formData.googleMapsLink}
-                onChange={e => setFormData({ ...formData, googleMapsLink: e.target.value })}
-                className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm"
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700">Teléfono</label>
-              <input
-                type="text"
-                value={formData.phone}
-                onChange={e => setFormData({ ...formData, phone: e.target.value })}
-                className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm"
-                required
-                maxLength={12}
-              />
-              {formErrors.phone && <p className="text-red-500 text-xs">{formErrors.phone}</p>}
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700">Trabajo</label>
-              <input
-                type="text"
-                value={formData.workplace}
-                onChange={e => setFormData({ ...formData, workplace: e.target.value })}
-                className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm"
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700">Vehículo</label>
-              <select
-                value={formData.vehicleId}
-                onChange={e => setFormData({ ...formData, vehicleId: e.target.value })}
-                className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm"
-              >
-                <option value="">Sin vehículo</option>
-                {vehicles.map(vehicle => (
-                  <option key={vehicle.id} value={vehicle.id}>
-                    {vehicle.plate} - {vehicle.brand}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700">Foto</label>
-              <input
-                type="file"
-                accept="image/*"
-                onChange={handlePhotoChange}
-                className="mt-1 block w-full"
-              />
-              {photoPreview && (
-                <img
-                  src={photoPreview}
-                  alt="Vista previa"
-                  className="mt-2 w-24 h-24 object-cover rounded-full border"
-                />
-              )}
-            </div>
-          </div>
-
-          {/* Garante */}
-          {(showGuarantor || (editingId && guarantorData.firstName)) && (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 border-t pt-6 mt-6">
-              <div className="col-span-2 flex items-center justify-between">
-                <h2 className="text-lg font-semibold text-gray-800">Datos del Garante</h2>
-                {guarantorData.firstName && (
-                  <button
-                    type="button"
-                    className="text-red-600 text-sm"
-                    onClick={() => {
-                      setGuarantorData({
-                        firstName: '',
-                        lastName: '',
-                        cedula: '',
-                        address: '',
-                        googleMapsLink: '',
-                        workplace: '',
-                        phone: '',
-                        photo: '',
-                        cedulaPhoto: '',
-                      });
-                      setShowGuarantor(false);
-                    }}
-                  >
-                    Quitar garante
-                  </button>
-                )}
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700">Nombre Garante</label>
-                <input
-                  type="text"
-                  value={guarantorData.firstName}
-                  onChange={e => setGuarantorData({ ...guarantorData, firstName: e.target.value })}
-                  className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm"
-                />
-                {formErrors.guarantorFirstName && <p className="text-red-500 text-xs">{formErrors.guarantorFirstName}</p>}
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700">Apellido Garante</label>
-                <input
-                  type="text"
-                  value={guarantorData.lastName}
-                  onChange={e => setGuarantorData({ ...guarantorData, lastName: e.target.value })}
-                  className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm"
-                />
-                {formErrors.guarantorLastName && <p className="text-red-500 text-xs">{formErrors.guarantorLastName}</p>}
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700">Cédula Garante</label>
-                <input
-                  type="text"
-                  value={guarantorData.cedula}
-                  onChange={e => setGuarantorData({ ...guarantorData, cedula: e.target.value })}
-                  className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm"
-                  maxLength={13}
-                />
-                {formErrors.guarantorCedula && <p className="text-red-500 text-xs">{formErrors.guarantorCedula}</p>}
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700">Dirección Garante</label>
-                <input
-                  type="text"
-                  value={guarantorData.address}
-                  onChange={e => setGuarantorData({ ...guarantorData, address: e.target.value })}
-                  className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm"
-                />
-                {formErrors.guarantorAddress && <p className="text-red-500 text-xs">{formErrors.guarantorAddress}</p>}
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700">Google Maps Garante</label>
-                <input
-                  type="text"
-                  value={guarantorData.googleMapsLink}
-                  onChange={e => setGuarantorData({ ...guarantorData, googleMapsLink: e.target.value })}
-                  className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700">Teléfono Garante</label>
-                <input
-                  type="text"
-                  value={guarantorData.phone}
-                  onChange={e => setGuarantorData({ ...guarantorData, phone: e.target.value })}
-                  className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm"
-                  maxLength={12}
-                />
-                {formErrors.guarantorPhone && <p className="text-red-500 text-xs">{formErrors.guarantorPhone}</p>}
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700">Trabajo Garante</label>
-                <input
-                  type="text"
-                  value={guarantorData.workplace}
-                  onChange={e => setGuarantorData({ ...guarantorData, workplace: e.target.value })}
-                  className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm"
-                />
-              </div>
-            </div>
-          )}
-
-          {/* Checkbox solo si no hay garante */}
-          {!guarantorData.firstName && (
-            <div className="flex items-center space-x-2">
-              <input
-                type="checkbox"
-                id="show-guarantor"
-                checked={showGuarantor}
-                onChange={() => setShowGuarantor(!showGuarantor)}
-                className="h-4 w-4 text-blue-600 border-gray-300 rounded"
-              />
-              <label htmlFor="show-guarantor" className="text-sm font-medium text-gray-700">
-                Agregar garante
-              </label>
-            </div>
-          )}
-
-          <div className="flex justify-end space-x-4">
-            <button
-              type="button"
-              onClick={() => { setShowForm(false); resetForm(); }}
-              className="px-6 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
-            >
-              Cancelar
-            </button>
-            <button
-              type="submit"
-              className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-            >
-              {editingId ? 'Actualizar Chofer' : 'Registrar Chofer'}
-            </button>
-          </div>
-        </form>
       </div>
     );
   }
 
   return (
-    <div className="space-y-8">
-      {/* Modal de información completa */}
-      {selectedDriver && (
-        <div className="fixed inset-0 bg-black bg-opacity-40 z-50 flex items-center justify-center">
-          <div className="bg-white rounded-xl shadow-lg p-8 max-w-lg w-full relative">
-            <button
-              className="absolute top-2 right-2 text-gray-400 hover:text-gray-700"
-              onClick={() => setSelectedDriver(null)}
-            >
-              ✕
-            </button>
-            <div className="flex items-center space-x-4 mb-4">
-              {selectedDriver.photo ? (
-                <img
-                  src={`http://localhost:3002/uploads/${selectedDriver.photo}`}
-                  alt="Foto"
-                  className="w-20 h-20 rounded-full object-cover border"
-                />
-              ) : (
-                <User className="w-20 h-20 text-gray-300" />
-              )}
-              <div>
-                <h2 className="text-2xl font-bold">{selectedDriver.firstName} {selectedDriver.lastName}</h2>
-                <p className="text-gray-500">Cédula: {selectedDriver.cedula}</p>
-                <p className="text-gray-500">Teléfono: {selectedDriver.phone}</p>
-              </div>
-            </div>
-            <div className="mb-2">
-              <span className="font-semibold">Dirección:</span> {selectedDriver.address}
-            </div>
-            <div className="mb-2">
-              <span className="font-semibold">Licencia:</span> {selectedDriver.license}
-            </div>
-            <div className="mb-2">
-              <span className="font-semibold">Fecha de inicio:</span> {new Date(selectedDriver.startDate).toLocaleDateString('es-ES')}
-            </div>
-            <div className="mb-2">
-              <span className="font-semibold">Trabajo:</span> {selectedDriver.workplace}
-            </div>
-            <div className="mb-2">
-              <span className="font-semibold">Vehículo:</span> {selectedDriver.vehicleId ? 'Asignado' : 'Sin asignar'}
-            </div>
-            {selectedDriver.guarantors && selectedDriver.guarantors.length > 0 && (
-              <div className="mt-4 border-t pt-4">
-                <h3 className="font-semibold mb-2">Garante</h3>
-                <div className="mb-1"><span className="font-semibold">Nombre:</span> {selectedDriver.guarantors[0].firstName} {selectedDriver.guarantors[0].lastName}</div>
-                <div className="mb-1"><span className="font-semibold">Cédula:</span> {selectedDriver.guarantors[0].cedula}</div>
-                <div className="mb-1"><span className="font-semibold">Teléfono:</span> {selectedDriver.guarantors[0].phone}</div>
-                <div className="mb-1"><span className="font-semibold">Dirección:</span> {selectedDriver.guarantors[0].address}</div>
-                <div className="mb-1"><span className="font-semibold">Trabajo:</span> {selectedDriver.guarantors[0].workplace}</div>
-              </div>
-            )}
-          </div>
-        </div>
-      )}
-
-      <div className="flex items-center justify-between">
+    <div className="space-y-6">
+      {/* Header */}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between space-y-4 sm:space-y-0">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900">Gestión de Choferes</h1>
-          <p className="text-gray-600 mt-1">Administra todos los choferes y garantes</p>
+          <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">Gestión de Conductores</h1>
+          <p className="text-gray-600 mt-1">Administra la información de todos los conductores</p>
         </div>
-        <button
-          onClick={() => { setShowForm(true); resetForm(); }}
-          className="inline-flex items-center space-x-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
-        >
-          <Plus className="w-5 h-5" />
-          <span>Registrar Primer Chofer</span>
-        </button>
+        <div className="flex items-center space-x-3">
+          <button
+            onClick={() => {
+              resetForm();
+              setShowForm(true);
+              setEditingDriver(null);
+            }}
+            className="flex items-center space-x-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+          >
+            <Plus className="w-4 h-4" />
+            <span>Nuevo Conductor</span>
+          </button>
+        </div>
       </div>
 
+      {/* Filters */}
       <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4">
-        <div className="relative">
-          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
-          <input
-            type="text"
-            placeholder="Buscar por nombre, cédula o teléfono..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-          />
+        <div className="flex flex-col sm:flex-row sm:items-center space-y-4 sm:space-y-0 sm:space-x-4">
+          <div className="flex-1">
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+              <input
+                type="text"
+                placeholder="Buscar conductores..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              />
+            </div>
+          </div>
+          <select
+            value={statusFilter}
+            onChange={(e) => setStatusFilter(e.target.value)}
+            className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+          >
+            <option value="all">Todos los estados</option>
+            <option value="Activo">Activo</option>
+            <option value="Inactivo">Inactivo</option>
+            <option value="Suspendido">Suspendido</option>
+          </select>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
-        {filteredDrivers.map((driver) => (
-          <div key={driver.id} className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 hover:shadow-md transition-shadow">
-            <div className="flex items-start justify-between mb-4">
-              <div className="flex items-center space-x-3">
-                {driver.photo ? (
-                  <img
-                    src={`http://localhost:3002/uploads/${driver.photo}`}
-                    alt="Foto"
-                    className="w-12 h-12 rounded-full object-cover border"
-                  />
-                ) : (
-                  <div className="w-12 h-12 bg-gray-100 rounded-full flex items-center justify-center">
-                    <User className="w-6 h-6 text-gray-400" />
-                  </div>
-                )}
-                <div>
-                  <h3 className="font-semibold text-gray-900">
-                    {driver.firstName} {driver.lastName}
-                  </h3>
-                  <p className="text-sm text-gray-500">Cédula: {driver.cedula}</p>
-                </div>
-              </div>
-              <div className="flex space-x-2">
-                <button
-                  className="p-1 text-gray-400 hover:text-blue-600 transition-colors"
-                  onClick={() => handleEdit(driver)}
-                  title="Editar"
-                >
-                  <Edit2 className="w-4 h-4" />
-                </button>
-                <button
-                  className="p-1 text-gray-400 hover:text-red-600 transition-colors"
-                  onClick={() => handleDelete(driver.id)}
-                  title="Eliminar"
-                >
-                  <Trash2 className="w-4 h-4" />
-                </button>
-                <button
-                  className="p-1 text-gray-400 hover:text-green-600 transition-colors"
-                  onClick={() => setSelectedDriver(driver)}
-                  title="Ver más"
-                >
-                  <Eye className="w-4 h-4" />
-                </button>
-              </div>
+      {/* Drivers List */}
+      <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+        <div className="overflow-x-auto">
+          <table className="w-full">
+            <thead className="bg-gray-50 border-b border-gray-200">
+              <tr>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Conductor
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Contacto
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Licencia
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Salario
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Estado
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Acciones
+                </th>
+              </tr>
+            </thead>
+            <tbody className="bg-white divide-y divide-gray-200">
+              {filteredDrivers.map((driver) => (
+                <tr key={driver.id} className="hover:bg-gray-50">
+                  <td className="px-6 py-4 whitespace-nowrap">
+                    <div className="flex items-center">
+                      <div className="w-10 h-10 bg-blue-500 rounded-full flex items-center justify-center">
+                        <Users className="w-5 h-5 text-white" />
+                      </div>
+                      <div className="ml-4">
+                        <div className="text-sm font-medium text-gray-900">
+                          {driver.firstName || 'N/A'} {driver.lastName || 'N/A'}
+                        </div>
+                        <div className="text-sm text-gray-500">
+                          Cédula: {driver.cedula || 'N/A'}
+                        </div>
+                      </div>
+                    </div>
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap">
+                    <div className="text-sm text-gray-900">{driver.phone || 'N/A'}</div>
+                    <div className="text-sm text-gray-500">{driver.email || 'N/A'}</div>
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap">
+                    <div className="text-sm text-gray-900">{driver.license || 'N/A'}</div>
+                    <div className="text-sm text-gray-500">
+                      Vence: {driver.licenseExpiry ? formatDate(driver.licenseExpiry) : 'N/A'}
+                    </div>
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap">
+                    <div className="text-sm font-medium text-gray-900">
+                      {driver.salary ? formatCurrency(driver.salary) : 'N/A'}
+                    </div>
+                    <div className="text-sm text-gray-500">
+                      {driver.commission ? `${driver.commission}% comisión` : 'N/A'}
+                    </div>
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap">
+                    <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
+                      driver.status?.name === 'Activo' ? 'bg-green-100 text-green-800' :
+                      driver.status?.name === 'Inactivo' ? 'bg-gray-100 text-gray-800' :
+                      'bg-red-100 text-red-800'
+                    }`}>
+                      {driver.status?.name || 'Sin estado'}
+                    </span>
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                    <div className="flex items-center space-x-2">
+                      <button
+                        onClick={() => handleEdit(driver)}
+                        className="text-blue-600 hover:text-blue-900"
+                        title="Editar"
+                      >
+                        <Edit className="w-4 h-4" />
+                      </button>
+                      <button
+                        onClick={() => handleDelete(driver.id || '')}
+                        className="text-red-600 hover:text-red-900"
+                        title="Eliminar"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      {/* Form Modal */}
+      {showForm && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-xl p-6 max-w-4xl w-full mx-4 max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="text-xl font-semibold text-gray-900">
+                {editingDriver ? 'Editar Conductor' : 'Nuevo Conductor'}
+              </h2>
+              <button
+                onClick={() => setShowForm(false)}
+                className="text-gray-500 hover:text-gray-700"
+              >
+                <XCircle className="w-6 h-6" />
+              </button>
             </div>
 
-            <div className="space-y-2 text-sm">
-              <div className="flex items-center space-x-2 text-gray-600">
-                <Phone className="w-4 h-4" />
-                <span>{driver.phone}</span>
+            <form onSubmit={handleSubmit} className="space-y-6">
+              {/* Personal Information */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Nombre *
+                  </label>
+                  <input
+                    type="text"
+                    value={formData.firstName || ''}
+                    onChange={(e) => setFormData({ ...formData, firstName: e.target.value })}
+                    className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent ${errors.firstName ? 'border-red-500' : 'border-gray-300'}`}
+                    placeholder="Carlos"
+                  />
+                  {errors.firstName && <p className="text-red-500 text-sm mt-1">{errors.firstName}</p>}
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Apellido *
+                  </label>
+                  <input
+                    type="text"
+                    value={formData.lastName || ''}
+                    onChange={(e) => setFormData({ ...formData, lastName: e.target.value })}
+                    className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent ${errors.lastName ? 'border-red-500' : 'border-gray-300'}`}
+                    placeholder="Martínez"
+                  />
+                  {errors.lastName && <p className="text-red-500 text-sm mt-1">{errors.lastName}</p>}
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Cédula *
+                  </label>
+                  <input
+                    type="text"
+                    value={formData.cedula || ''}
+                    onChange={(e) => setFormData({ ...formData, cedula: e.target.value })}
+                    className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent ${errors.cedula ? 'border-red-500' : 'border-gray-300'}`}
+                    placeholder="12345678901"
+                    maxLength={11}
+                  />
+                  {errors.cedula && <p className="text-red-500 text-sm mt-1">{errors.cedula}</p>}
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Teléfono *
+                  </label>
+                  <input
+                    type="tel"
+                    value={formData.phone || ''}
+                    onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+                    className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent ${errors.phone ? 'border-red-500' : 'border-gray-300'}`}
+                    placeholder="809-123-4567"
+                  />
+                  {errors.phone && <p className="text-red-500 text-sm mt-1">{errors.phone}</p>}
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Email *
+                  </label>
+                  <input
+                    type="email"
+                    value={formData.email || ''}
+                    onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                    className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent ${errors.email ? 'border-red-500' : 'border-gray-300'}`}
+                    placeholder="carlos@example.com"
+                  />
+                  {errors.email && <p className="text-red-500 text-sm mt-1">{errors.email}</p>}
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Dirección *
+                  </label>
+                  <input
+                    type="text"
+                    value={formData.address || ''}
+                    onChange={(e) => setFormData({ ...formData, address: e.target.value })}
+                    className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent ${errors.address ? 'border-red-500' : 'border-gray-300'}`}
+                    placeholder="Calle Principal #123"
+                  />
+                  {errors.address && <p className="text-red-500 text-sm mt-1">{errors.address}</p>}
+                </div>
               </div>
-              <div className="flex items-center space-x-2 text-gray-600">
-                <Calendar className="w-4 h-4" />
-                <span>Desde: {new Date(driver.startDate).toLocaleDateString('es-ES')}</span>
+
+              {/* License Information */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Número de Licencia *
+                  </label>
+                  <input
+                    type="text"
+                    value={formData.license || ''}
+                    onChange={(e) => setFormData({ ...formData, license: e.target.value })}
+                    className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent ${errors.license ? 'border-red-500' : 'border-gray-300'}`}
+                    placeholder="ABC123456"
+                  />
+                  {errors.license && <p className="text-red-500 text-sm mt-1">{errors.license}</p>}
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Fecha de Vencimiento *
+                  </label>
+                  <input
+                    type="date"
+                    value={formData.licenseExpiry || ''}
+                    onChange={(e) => setFormData({ ...formData, licenseExpiry: e.target.value })}
+                    className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent ${errors.licenseExpiry ? 'border-red-500' : 'border-gray-300'}`}
+                  />
+                  {errors.licenseExpiry && <p className="text-red-500 text-sm mt-1">{errors.licenseExpiry}</p>}
+                </div>
               </div>
-              <div className="flex items-center space-x-2 text-gray-600">
-                <MapPin className="w-4 h-4" />
-                <span className="truncate">{driver.address}</span>
-                {driver.googleMapsLink && (
-                  <a
-                    href={driver.googleMapsLink}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-blue-600 hover:text-blue-700"
-                  >
-                    <ExternalLink className="w-3 h-3" />
-                  </a>
-                )}
+
+              {/* Photos Upload */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Foto de Perfil</label>
+                  <input
+                    type="file"
+                    accept="image/*"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      setFormData({ ...formData, photo: file });
+                    }}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                  />
+                  {formData.photo && (
+                    <p className="text-xs text-gray-500 mt-1">{formData.photo.name}</p>
+                  )}
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Foto Cédula</label>
+                  <input
+                    type="file"
+                    accept="image/*"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      setFormData({ ...formData, cedulaPhoto: file });
+                    }}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                  />
+                  {formData.cedulaPhoto && (
+                    <p className="text-xs text-gray-500 mt-1">{formData.cedulaPhoto.name}</p>
+                  )}
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Foto Licencia</label>
+                  <input
+                    type="file"
+                    accept="image/*"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      setFormData({ ...formData, licensePhoto: file });
+                    }}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                  />
+                  {formData.licensePhoto && (
+                    <p className="text-xs text-gray-500 mt-1">{formData.licensePhoto.name}</p>
+                  )}
+                </div>
               </div>
-              {driver.vehicleId && (
-                <div className="flex items-center space-x-2 text-gray-600">
-                  <Car className="w-4 h-4" />
-                  <span>Vehículo asignado</span>
+
+              {/* Emergency Contact */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Contacto de Emergencia *
+                  </label>
+                  <input
+                    type="text"
+                    value={formData.emergencyContact || ''}
+                    onChange={(e) => setFormData({ ...formData, emergencyContact: e.target.value })}
+                    className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent ${errors.emergencyContact ? 'border-red-500' : 'border-gray-300'}`}
+                    placeholder="María Martínez"
+                  />
+                  {errors.emergencyContact && <p className="text-red-500 text-sm mt-1">{errors.emergencyContact}</p>}
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Teléfono de Emergencia *
+                  </label>
+                  <input
+                    type="tel"
+                    value={formData.emergencyPhone || ''}
+                    onChange={(e) => setFormData({ ...formData, emergencyPhone: e.target.value })}
+                    className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent ${errors.emergencyPhone ? 'border-red-500' : 'border-gray-300'}`}
+                    placeholder="809-987-6543"
+                  />
+                  {errors.emergencyPhone && <p className="text-red-500 text-sm mt-1">{errors.emergencyPhone}</p>}
+                </div>
+              </div>
+
+              {/* Employment Information */}
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Fecha de Inicio *
+                  </label>
+                  <input
+                    type="date"
+                    value={formData.startDate || ''}
+                    onChange={(e) => setFormData({ ...formData, startDate: e.target.value })}
+                    className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent ${errors.startDate ? 'border-red-500' : 'border-gray-300'}`}
+                  />
+                  {errors.startDate && <p className="text-red-500 text-sm mt-1">{errors.startDate}</p>}
+                </div>
+
+            {/* Guarantor (optional) */}
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <label className="text-sm font-medium text-gray-700">Agregar Garante (opcional)</label>
+                <button
+                  type="button"
+                  onClick={() => setIncludeGuarantor(!includeGuarantor)}
+                  className={`px-3 py-1 rounded-lg text-sm ${includeGuarantor ? 'bg-red-100 text-red-700' : 'bg-blue-100 text-blue-700'}`}
+                >
+                  {includeGuarantor ? 'Quitar garante' : 'Agregar garante'}
+                </button>
+              </div>
+              {includeGuarantor && (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 border rounded-lg p-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Nombre *</label>
+                    <input
+                      type="text"
+                      value={guarantor.firstName}
+                      onChange={(e) => setGuarantor({ ...guarantor, firstName: e.target.value })}
+                      className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 ${errors['guarantor.firstName'] ? 'border-red-500' : 'border-gray-300'}`}
+                    />
+                    {errors['guarantor.firstName'] && <p className="text-red-500 text-sm mt-1">{errors['guarantor.firstName']}</p>}
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Apellido *</label>
+                    <input
+                      type="text"
+                      value={guarantor.lastName}
+                      onChange={(e) => setGuarantor({ ...guarantor, lastName: e.target.value })}
+                      className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 ${errors['guarantor.lastName'] ? 'border-red-500' : 'border-gray-300'}`}
+                    />
+                    {errors['guarantor.lastName'] && <p className="text-red-500 text-sm mt-1">{errors['guarantor.lastName']}</p>}
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Cédula *</label>
+                    <input
+                      type="text"
+                      value={guarantor.cedula}
+                      onChange={(e) => setGuarantor({ ...guarantor, cedula: e.target.value })}
+                      className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 ${errors['guarantor.cedula'] ? 'border-red-500' : 'border-gray-300'}`}
+                      placeholder="12345678901"
+                      maxLength={11}
+                    />
+                    {errors['guarantor.cedula'] && <p className="text-red-500 text-sm mt-1">{errors['guarantor.cedula']}</p>}
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Teléfono *</label>
+                    <input
+                      type="tel"
+                      value={guarantor.phone}
+                      onChange={(e) => setGuarantor({ ...guarantor, phone: e.target.value })}
+                      className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 ${errors['guarantor.phone'] ? 'border-red-500' : 'border-gray-300'}`}
+                      placeholder="809-123-4567"
+                    />
+                    {errors['guarantor.phone'] && <p className="text-red-500 text-sm mt-1">{errors['guarantor.phone']}</p>}
+                  </div>
+                  <div className="md:col-span-2">
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Dirección *</label>
+                    <input
+                      type="text"
+                      value={guarantor.address}
+                      onChange={(e) => setGuarantor({ ...guarantor, address: e.target.value })}
+                      className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 ${errors['guarantor.address'] ? 'border-red-500' : 'border-gray-300'}`}
+                      placeholder="Calle..."
+                    />
+                    {errors['guarantor.address'] && <p className="text-red-500 text-sm mt-1">{errors['guarantor.address']}</p>}
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Trabajo (opcional)</label>
+                    <input
+                      type="text"
+                      value={guarantor.workplace}
+                      onChange={(e) => setGuarantor({ ...guarantor, workplace: e.target.value })}
+                      className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 border-gray-300"
+                      placeholder="Empresa / Ocupación"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Google Maps (opcional)</label>
+                    <input
+                      type="url"
+                      value={guarantor.googleMapsLink}
+                      onChange={(e) => setGuarantor({ ...guarantor, googleMapsLink: e.target.value })}
+                      className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 border-gray-300"
+                      placeholder="https://maps.google.com/..."
+                    />
+                  </div>
                 </div>
               )}
             </div>
-
-            <div className="mt-4 pt-4 border-t border-gray-100">
-              <div className="flex justify-between items-center">
-                <span className="text-xs text-gray-500">
-                  Registrado: {new Date(driver.createdAt).toLocaleDateString('es-ES')}
-                </span>
-                <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
-                  Activo
-                </span>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Salario (RD$) *
+                  </label>
+                  <input
+                    type="number"
+                    value={formData.salary || ''}
+                    onChange={(e) => setFormData({ ...formData, salary: parseFloat(e.target.value) || 0 })}
+                    className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent ${errors.salary ? 'border-red-500' : 'border-gray-300'}`}
+                    placeholder="25000"
+                    min="0"
+                  />
+                  {errors.salary && <p className="text-red-500 text-sm mt-1">{errors.salary}</p>}
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Comisión (%) *
+                  </label>
+                  <input
+                    type="number"
+                    value={formData.commission || ''}
+                    onChange={(e) => setFormData({ ...formData, commission: parseFloat(e.target.value) || 0 })}
+                    className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent ${errors.commission ? 'border-red-500' : 'border-gray-300'}`}
+                    placeholder="15"
+                    min="0"
+                    max="100"
+                  />
+                  {errors.commission && <p className="text-red-500 text-sm mt-1">{errors.commission}</p>}
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Estado
+                  </label>
+                  <select
+                    value={formData.statusId || ''}
+                    onChange={(e) => setFormData({ ...formData, statusId: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  >
+                    <option value="1">Activo</option>
+                    <option value="2">Inactivo</option>
+                    <option value="3">Suspendido</option>
+                  </select>
+                </div>
               </div>
-            </div>
-          </div>
-        ))}
-      </div>
 
-      {filteredDrivers.length === 0 && (
-        <div className="text-center py-12">
-          <Users className="w-16 h-16 text-gray-300 mx-auto mb-4" />
-          <h3 className="text-lg font-medium text-gray-900 mb-2">
-            {searchTerm ? 'No se encontraron choferes' : 'No hay choferes registrados'}
-          </h3>
-          <p className="text-gray-500 mb-6">
-            {searchTerm
-              ? 'Intenta con otros términos de búsqueda'
-              : 'Comienza registrando tu primer chofer'
-            }
-          </p>
-          {!searchTerm && (
-            <button
-              onClick={() => { setShowForm(true); resetForm(); }}
-              className="inline-flex items-center space-x-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
-            >
-              <Plus className="w-5 h-5" />
-              <span>Registrar Primer Chofer</span>
-            </button>
-          )}
+              {/* Notes */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Notas
+                </label>
+                <textarea
+                  value={formData.notes || ''}
+                  onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
+                  rows={3}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  placeholder="Información adicional sobre el conductor..."
+                />
+              </div>
+
+              {/* Form Actions */}
+              <div className="flex items-center justify-end space-x-3 pt-6 border-t border-gray-200">
+                <button
+                  type="button"
+                  onClick={() => setShowForm(false)}
+                  className="px-4 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  disabled={isSubmitting}
+                  className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50"
+                >
+                  {isSubmitting ? 'Guardando...' : (editingDriver ? 'Actualizar' : 'Crear')}
+                </button>
+              </div>
+            </form>
+          </div>
         </div>
       )}
+
+      {/* Delete Confirmation Modal */}
+      <DeleteConfirmationModal
+        isOpen={deleteModal.isOpen}
+        onClose={closeDeleteModal}
+        title="No se puede eliminar el conductor"
+        message={deleteModal.message}
+        details={deleteModal.details}
+      />
     </div>
   );
 }
