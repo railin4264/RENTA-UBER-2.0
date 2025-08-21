@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import {
   Home,
@@ -30,10 +30,29 @@ interface LayoutProps {
 export default function Layout({ children }: LayoutProps) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [logViewerOpen, setLogViewerOpen] = useState(false);
+  const [health, setHealth] = useState<'ok'|'error'|'idle'>('idle');
   const { state } = useApp();
   const { user, logout } = useAuth();
   const location = useLocation();
   const navigate = useNavigate();
+  
+  useEffect(() => {
+    let mounted = true;
+    const ping = async () => {
+      try {
+        const api = import.meta.env.VITE_API_URL || 'http://localhost:3001/api';
+        const res = await fetch(`${api}/health`);
+        if (!mounted) return;
+        setHealth(res.ok ? 'ok' : 'error');
+      } catch {
+        if (!mounted) return;
+        setHealth('error');
+      }
+    };
+    ping();
+    const id = setInterval(ping, 30000);
+    return () => { mounted = false; clearInterval(id); };
+  }, []);
   
   const handleLogout = () => {
     logout();
@@ -152,6 +171,11 @@ export default function Layout({ children }: LayoutProps) {
             </div>
 
             <div className="flex items-center space-x-4">
+              {/* Backend health badge */}
+              <Link to="/status" className={`px-2 py-1 text-xs rounded-md border ${health==='ok' ? 'bg-green-50 text-green-700 border-green-200' : health==='error' ? 'bg-red-50 text-red-700 border-red-200' : 'bg-gray-50 text-gray-700 border-gray-200'}`}>
+                Backend: {health === 'ok' ? 'OK' : health === 'error' ? 'Error' : '...'}
+              </Link>
+
               {/* Search */}
               <div className="hidden sm:block">
                 <div className="relative">
