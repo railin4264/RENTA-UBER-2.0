@@ -14,6 +14,8 @@ import { authenticateToken } from '../middlewares/auth';
 import { validateDriver } from '../utils/validation';
 import multer from 'multer';
 import path from 'path';
+import { z } from 'zod';
+import { zodValidate } from '../middlewares/zodValidate';
 
 const router = express.Router();
 
@@ -42,6 +44,17 @@ const upload = multer({
   }
 });
 
+const idParamSchema = z.object({ params: z.object({ id: z.string().min(1) }) });
+const driverBodySchema = z.object({
+  body: z.object({
+    firstName: z.string().min(2),
+    lastName: z.string().min(2),
+    cedula: z.string().min(5),
+    license: z.string().min(3),
+    phone: z.string().min(5),
+  })
+});
+
 // Rutas públicas (sin autenticación)
 router.get('/', getAllDrivers);
 router.get('/stats', getDriverStats);
@@ -49,10 +62,10 @@ router.get('/search', searchDrivers);
 router.get('/status/:statusId', getDriversByStatus);
 
 // Rutas protegidas (requieren autenticación)
-router.get('/:id', authenticateToken, getDriverById);
-router.post('/', authenticateToken, validateDriver, createDriver);
-router.put('/:id', authenticateToken, validateDriver, updateDriver);
-router.delete('/:id', authenticateToken, deleteDriver);
-router.post('/:id/photo', authenticateToken, upload.single('photo'), uploadDriverPhoto);
+router.get('/:id', zodValidate(idParamSchema), authenticateToken, getDriverById);
+router.post('/', authenticateToken, zodValidate(driverBodySchema), createDriver);
+router.put('/:id', authenticateToken, zodValidate(idParamSchema), zodValidate(driverBodySchema.partial()), updateDriver);
+router.delete('/:id', authenticateToken, zodValidate(idParamSchema), deleteDriver);
+router.post('/:id/photo', authenticateToken, zodValidate(idParamSchema), upload.single('photo'), uploadDriverPhoto);
 
 export default router;

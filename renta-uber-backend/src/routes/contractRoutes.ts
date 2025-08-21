@@ -5,36 +5,42 @@ import {
   createContract,
   updateContract,
   deleteContract,
-  getContractsByDriver,
-  getContractsByVehicle,
-  getContractsByStatus,
-  getActiveContracts,
-  getExpiringContracts,
-  getContractStats,
-  searchContracts
-  , calculatePenalty, downloadContract
+  calculatePenalty,
+  downloadContract
 } from '../controllers/contractController';
 import { authenticateToken } from '../middlewares/auth';
 import { validateContract } from '../utils/validation';
+import { z } from 'zod';
+import { zodValidate } from '../middlewares/zodValidate';
 
 const router = express.Router();
 
-// Rutas públicas (sin autenticación)
-router.get('/', getAllContracts);
-router.get('/stats', getContractStats);
-router.get('/search', searchContracts);
-router.get('/active', getActiveContracts);
-router.get('/expiring', getExpiringContracts);
-router.get('/driver/:driverId', getContractsByDriver);
-router.get('/vehicle/:vehicleId', getContractsByVehicle);
-router.get('/status/:statusId', getContractsByStatus);
-router.post('/:id/calculate-penalty', calculatePenalty);
-router.get('/:id/download', downloadContract);
+const idParamSchema = z.object({ params: z.object({ id: z.string().min(1) }) });
+const contractBodySchema = z.object({
+  body: z.object({
+    driverId: z.string().min(1),
+    vehicleId: z.string().min(1),
+    startDate: z.string().min(1),
+    endDate: z.string().optional(),
+    type: z.enum(['DAILY','MONTHLY','CUSTOM']).optional(),
+    basePrice: z.number().optional(),
+    dailyPrice: z.number().optional(),
+    monthlyPrice: z.number().optional(),
+    deposit: z.number().optional(),
+    penaltyRate: z.number().optional(),
+    allowedDelayDays: z.number().int().optional(),
+    automaticRenewal: z.boolean().optional(),
+    terms: z.string().optional(),
+    notes: z.string().optional(),
+  })
+});
 
-// Rutas protegidas (requieren autenticación)
-router.get('/:id', getContractById);
-router.post('/', authenticateToken, validateContract, createContract);
-router.put('/:id', authenticateToken, validateContract, updateContract);
-router.delete('/:id', authenticateToken, deleteContract);
+router.get('/', getAllContracts);
+router.get('/:id', zodValidate(idParamSchema), getContractById);
+router.post('/', authenticateToken, zodValidate(contractBodySchema), createContract);
+router.put('/:id', authenticateToken, zodValidate(idParamSchema), zodValidate(contractBodySchema.partial()), updateContract);
+router.delete('/:id', authenticateToken, zodValidate(idParamSchema), deleteContract);
+router.post('/:id/calculate-penalty', (req, res, next) => next(), calculatePenalty);
+router.get('/:id/download', downloadContract);
 
 export default router;

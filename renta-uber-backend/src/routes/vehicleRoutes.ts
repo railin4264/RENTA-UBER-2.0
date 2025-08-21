@@ -15,6 +15,8 @@ import { authenticateToken } from '../middlewares/auth';
 import { validateVehicle } from '../utils/validation';
 import multer from 'multer';
 import path from 'path';
+import { z } from 'zod';
+import { zodValidate } from '../middlewares/zodValidate';
 
 const router = express.Router();
 
@@ -29,7 +31,7 @@ const storage = multer.diskStorage({
   }
 });
 
-const upload = multer({ 
+const upload = multer({
   storage,
   limits: {
     fileSize: 5 * 1024 * 1024 // 5MB
@@ -43,6 +45,16 @@ const upload = multer({
   }
 });
 
+const idParamSchema = z.object({ params: z.object({ id: z.string().min(1) }) });
+const vehicleBodySchema = z.object({
+  body: z.object({
+    model: z.string().min(2),
+    plate: z.string().min(5),
+    year: z.number().int().gte(1900).lte(new Date().getFullYear() + 1),
+    color: z.string().min(2)
+  })
+});
+
 // Rutas públicas (sin autenticación)
 router.get('/', getAllVehicles);
 router.get('/stats', getVehicleStats);
@@ -51,10 +63,10 @@ router.get('/status/:statusId', getVehiclesByStatus);
 router.get('/maintenance', getVehiclesInMaintenance);
 
 // Rutas protegidas (requieren autenticación)
-router.get('/:id', getVehicleById);
-router.post('/', authenticateToken, validateVehicle, createVehicle);
-router.put('/:id', authenticateToken, validateVehicle, updateVehicle);
-router.delete('/:id', authenticateToken, deleteVehicle);
-router.post('/:id/photo', authenticateToken, upload.single('photo'), uploadVehiclePhoto);
+router.get('/:id', zodValidate(idParamSchema), getVehicleById);
+router.post('/', authenticateToken, zodValidate(vehicleBodySchema), createVehicle);
+router.put('/:id', authenticateToken, zodValidate(idParamSchema), zodValidate(vehicleBodySchema.partial()), updateVehicle);
+router.delete('/:id', authenticateToken, zodValidate(idParamSchema), deleteVehicle);
+router.post('/:id/photo', authenticateToken, zodValidate(idParamSchema), upload.single('photo'), uploadVehiclePhoto);
 
 export default router;

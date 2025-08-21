@@ -1,36 +1,34 @@
 import express from 'express';
-import {
+import { 
   getAllPayments,
   getPaymentById,
   createPayment,
   updatePayment,
-  deletePayment,
-  getPaymentsByDriver,
-  getPaymentsByContract,
-  getPaymentsByStatus,
-  getPaymentsByType,
-  getPaymentStats,
-  getMonthlyPayments,
-  searchPayments
+  deletePayment
 } from '../controllers/paymentController';
 import { authenticateToken } from '../middlewares/auth';
+import { validatePayment } from '../utils/validation';
+import { z } from 'zod';
+import { zodValidate } from '../middlewares/zodValidate';
 
 const router = express.Router();
 
-// Rutas públicas (sin autenticación)
-router.get('/', getAllPayments);
-router.get('/stats', getPaymentStats);
-router.get('/search', searchPayments);
-router.get('/driver/:driverId', getPaymentsByDriver);
-router.get('/contract/:contractId', getPaymentsByContract);
-router.get('/status/:status', getPaymentsByStatus);
-router.get('/type/:type', getPaymentsByType);
-router.get('/monthly/:year/:month', getMonthlyPayments);
+const idParamSchema = z.object({ params: z.object({ id: z.string().min(1) }) });
+const paymentBodySchema = z.object({
+  body: z.object({
+    amount: z.number().nonnegative(),
+    driverId: z.string().min(1),
+    date: z.string().min(1),
+  })
+});
 
-// Rutas protegidas (requieren autenticación)
-router.get('/:id', getPaymentById);
-router.post('/', authenticateToken, createPayment);
-router.put('/:id', authenticateToken, updatePayment);
-router.delete('/:id', authenticateToken, deletePayment);
+// Rutas públicas
+router.get('/', getAllPayments);
+
+// Rutas protegidas
+router.get('/:id', zodValidate(idParamSchema), getPaymentById);
+router.post('/', authenticateToken, zodValidate(paymentBodySchema), createPayment);
+router.put('/:id', authenticateToken, zodValidate(idParamSchema), zodValidate(paymentBodySchema.partial()), updatePayment);
+router.delete('/:id', authenticateToken, zodValidate(idParamSchema), deletePayment);
 
 export default router;
