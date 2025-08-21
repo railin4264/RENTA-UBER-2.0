@@ -46,14 +46,14 @@ const upload = multer({
 });
 
 const idParamSchema = z.object({ params: z.object({ id: z.string().min(1) }) });
-const vehicleBodySchema = z.object({
-  body: z.object({
-    model: z.string().min(2),
-    plate: z.string().min(5),
-    year: z.number().int().gte(1900).lte(new Date().getFullYear() + 1),
-    color: z.string().min(2)
-  })
+const vehicleBodyBase = z.object({
+  model: z.string().min(2),
+  plate: z.string().min(5),
+  year: z.number().int().gte(1900).lte(new Date().getFullYear() + 1),
+  color: z.string().min(2),
 });
+const vehicleCreateSchema = z.object({ body: vehicleBodyBase });
+const vehicleUpdateSchema = z.object({ body: vehicleBodyBase.partial() });
 
 // Rutas públicas (sin autenticación)
 router.get('/', getAllVehicles);
@@ -64,8 +64,8 @@ router.get('/maintenance', getVehiclesInMaintenance);
 
 // Rutas protegidas (requieren autenticación)
 router.get('/:id', zodValidate(idParamSchema), getVehicleById);
-router.post('/', authenticateToken, zodValidate(vehicleBodySchema), createVehicle);
-router.put('/:id', authenticateToken, zodValidate(idParamSchema), zodValidate(vehicleBodySchema.partial()), updateVehicle);
+router.post('/', authenticateToken, zodValidate(vehicleCreateSchema), createVehicle);
+router.put('/:id', authenticateToken, zodValidate(idParamSchema), zodValidate(vehicleUpdateSchema), updateVehicle);
 router.delete('/:id', authenticateToken, zodValidate(idParamSchema), deleteVehicle);
 router.post('/:id/photo', authenticateToken, zodValidate(idParamSchema), upload.single('photo'), uploadVehiclePhoto);
 
