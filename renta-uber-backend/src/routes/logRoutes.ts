@@ -2,11 +2,17 @@ import { Router } from 'express';
 import fs from 'fs';
 import path from 'path';
 import { authenticateToken } from '../middlewares/auth';
+import rateLimit from 'express-rate-limit';
+import { z } from 'zod';
+import { zodValidate } from '../middlewares/zodValidate';
 
 const router = Router();
 
+const logsLimiter = rateLimit({ windowMs: 60 * 1000, max: 30 });
+const limitQuerySchema = z.object({ query: z.object({ limit: z.string().regex(/^\d+$/).optional() }).partial() });
+
 // Obtener logs de la aplicación (protegido)
-router.get('/app', authenticateToken, (req, res) => {
+router.get('/app', authenticateToken, logsLimiter, zodValidate(limitQuerySchema), (req, res) => {
   try {
     const logFile = path.join(__dirname, '../../logs/app.log');
     
@@ -20,59 +26,37 @@ router.get('/app', authenticateToken, (req, res) => {
     
     const content = fs.readFileSync(logFile, 'utf8');
     const lines = content.split('\n').filter(line => line.trim());
+    const limit = Math.min(parseInt(String(req.query.limit || '100'), 10) || 100, 500);
+    const recentLines = lines.slice(-limit);
     
-    // Obtener las últimas 100 líneas
-    const recentLines = lines.slice(-100);
-    
-    res.json({
-      success: true,
-      data: recentLines,
-      count: recentLines.length
-    });
+    res.json({ success: true, data: recentLines, count: recentLines.length });
   } catch (error: any) {
-    res.status(500).json({
-      success: false,
-      message: 'Error al leer los logs',
-      error: error?.message || String(error)
-    });
+    res.status(500).json({ success: false, message: 'Error al leer los logs', error: error?.message || String(error) });
   }
 });
 
 // Obtener logs de errores (protegido)
-router.get('/errors', authenticateToken, (req, res) => {
+router.get('/errors', authenticateToken, logsLimiter, zodValidate(limitQuerySchema), (req, res) => {
   try {
     const errorLogFile = path.join(__dirname, '../../logs/errors.log');
     
     if (!fs.existsSync(errorLogFile)) {
-      return res.json({
-        success: true,
-        data: [],
-        message: 'No hay errores registrados'
-      });
+      return res.json({ success: true, data: [], message: 'No hay errores registrados' });
     }
     
     const content = fs.readFileSync(errorLogFile, 'utf8');
     const lines = content.split('\n').filter(line => line.trim());
+    const limit = Math.min(parseInt(String(req.query.limit || '50'), 10) || 50, 500);
+    const recentErrors = lines.slice(-limit);
     
-    // Obtener las últimas 50 líneas de errores
-    const recentErrors = lines.slice(-50);
-    
-    res.json({
-      success: true,
-      data: recentErrors,
-      count: recentErrors.length
-    });
+    res.json({ success: true, data: recentErrors, count: recentErrors.length });
   } catch (error: any) {
-    res.status(500).json({
-      success: false,
-      message: 'Error al leer los logs de errores',
-      error: error?.message || String(error)
-    });
+    res.status(500).json({ success: false, message: 'Error al leer los logs de errores', error: error?.message || String(error) });
   }
 });
 
 // Limpiar logs (protegido)
-router.delete('/clear', authenticateToken, (req, res) => {
+router.delete('/clear', authenticateToken, logsLimiter, (req, res) => {
   try {
     const logFile = path.join(__dirname, '../../logs/app.log');
     const errorLogFile = path.join(__dirname, '../../logs/errors.log');
@@ -85,16 +69,9 @@ router.delete('/clear', authenticateToken, (req, res) => {
       fs.writeFileSync(errorLogFile, '');
     }
     
-    res.json({
-      success: true,
-      message: 'Logs limpiados exitosamente'
-    });
+    res.json({ success: true, message: 'Logs limpiados exitosamente' });
   } catch (error: any) {
-    res.status(500).json({
-      success: false,
-      message: 'Error al limpiar los logs',
-      error: error?.message || String(error)
-    });
+    res.status(500).json({ success: false, message: 'Error al limpiar los logs', error: error?.message || String(error) });
   }
 });
 

@@ -12,6 +12,7 @@ import AccountingSystem from './components/AccountingSystem';
 import AdvancedReports from './components/AdvancedReports';
 import NotificationSystem from './components/NotificationSystem';
 import LoadingSpinner from './components/LoadingSpinner';
+import StatusPage from './components/StatusPage';
 import { useAuth } from './context/AuthContext';
 
 interface Notification {
@@ -47,10 +48,7 @@ function AppRoutes() {
   };
 
   const addNotification = (notification: Omit<Notification, 'id'>) => {
-    const newNotification: Notification = {
-      ...notification,
-      id: Date.now().toString()
-    };
+    const newNotification: Notification = { ...notification, id: Date.now().toString() };
     setNotifications(prev => [newNotification, ...prev]);
   };
 
@@ -90,6 +88,7 @@ function AppRoutes() {
     return (
       <Routes>
         <Route path="/login" element={<Login onLoginSuccess={handleLoginSuccess} />} />
+        <Route path="/status" element={<StatusPage />} />
         <Route path="*" element={<Navigate to="/login" replace />} />
       </Routes>
     );
@@ -103,6 +102,7 @@ function AppRoutes() {
             <Dashboard />
           </Layout>
         } />
+        <Route path="/status" element={<StatusPage />} />
         <Route path="/drivers" element={
           <Layout>
             <DriverManagement />
