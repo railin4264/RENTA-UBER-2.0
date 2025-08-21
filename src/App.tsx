@@ -12,18 +12,18 @@ function App() {
       <AuthProvider>
         <AppProvider>
           <Router>
-            <div className="min-h-screen bg-gray-50">
+            <a href="#main-content" className="skip-link">Saltar al contenido</a>
+            <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
               <Toaster 
                 position="top-right"
                 toastOptions={{
                   duration: 4000,
-                  style: {
-                    background: '#363636',
-                    color: '#fff',
-                  },
+                  style: { background: '#363636', color: '#fff' },
                 }}
               />
-              <AppRoutes />
+              <div id="main-content">
+                <AppRoutes />
+              </div>
             </div>
           </Router>
         </AppProvider>

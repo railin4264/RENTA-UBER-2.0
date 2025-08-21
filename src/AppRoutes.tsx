@@ -1,15 +1,15 @@
-import React, { useState } from 'react';
+import React, { useState, Suspense, lazy } from 'react';
 import { Routes, Route, Navigate, useNavigate } from 'react-router-dom';
 import Layout from './components/Layout';
 import Login from './components/Login';
-import Dashboard from './components/Dashboard';
-import DriverManagement from './components/DriverManagement';
-import VehicleManagement from './components/VehicleManagement';
-import ContractManagement from './components/ContractManagement';
-import PaymentManagement from './components/PaymentManagement';
-import ExpenseManagement from './components/ExpenseManagement';
-import AccountingSystem from './components/AccountingSystem';
-import AdvancedReports from './components/AdvancedReports';
+const Dashboard = lazy(() => import('./components/Dashboard'));
+const DriverManagement = lazy(() => import('./components/DriverManagement'));
+const VehicleManagement = lazy(() => import('./components/VehicleManagement'));
+const ContractManagement = lazy(() => import('./components/ContractManagement'));
+const PaymentManagement = lazy(() => import('./components/PaymentManagement'));
+const ExpenseManagement = lazy(() => import('./components/ExpenseManagement'));
+const AccountingSystem = lazy(() => import('./components/AccountingSystem'));
+const AdvancedReports = lazy(() => import('./components/AdvancedReports'));
 import NotificationSystem from './components/NotificationSystem';
 import LoadingSpinner from './components/LoadingSpinner';
 import StatusPage from './components/StatusPage';
@@ -96,63 +96,65 @@ function AppRoutes() {
 
   return (
     <div className="App">
-      <Routes>
-        <Route path="/" element={
-          <Layout>
-            <Dashboard />
-          </Layout>
-        } />
-        <Route path="/status" element={<StatusPage />} />
-        <Route path="/drivers" element={
-          <Layout>
-            <DriverManagement />
-          </Layout>
-        } />
-        <Route path="/vehicles" element={
-          <Layout>
-            <VehicleManagement />
-          </Layout>
-        } />
-        <Route path="/contracts" element={
-          <Layout>
-            <ContractManagement />
-          </Layout>
-        } />
-        <Route path="/payments" element={
-          <Layout>
-            <PaymentManagement />
-          </Layout>
-        } />
-        <Route path="/expenses" element={
-          <Layout>
-            <ExpenseManagement />
-          </Layout>
-        } />
-        <Route path="/accounting" element={
-          <Layout>
-            <AccountingSystem />
-          </Layout>
-        } />
-        <Route path="/reports" element={
-          <Layout>
-            <AdvancedReports />
-          </Layout>
-        } />
-        <Route path="/settings" element={
-          <Layout>
-            <div className="space-y-6">
-              <div>
-                <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">Configuración</h1>
-                <p className="text-gray-600 mt-1">Configuración del sistema</p>
+      <Suspense fallback={<div className="p-6"><LoadingSpinner /></div>}>
+        <Routes>
+          <Route path="/" element={
+            <Layout>
+              <Dashboard />
+            </Layout>
+          } />
+          <Route path="/status" element={<StatusPage />} />
+          <Route path="/drivers" element={
+            <Layout>
+              <DriverManagement />
+            </Layout>
+          } />
+          <Route path="/vehicles" element={
+            <Layout>
+              <VehicleManagement />
+            </Layout>
+          } />
+          <Route path="/contracts" element={
+            <Layout>
+              <ContractManagement />
+            </Layout>
+          } />
+          <Route path="/payments" element={
+            <Layout>
+              <PaymentManagement />
+            </Layout>
+          } />
+          <Route path="/expenses" element={
+            <Layout>
+              <ExpenseManagement />
+            </Layout>
+          } />
+          <Route path="/accounting" element={
+            <Layout>
+              <AccountingSystem />
+            </Layout>
+          } />
+          <Route path="/reports" element={
+            <Layout>
+              <AdvancedReports />
+            </Layout>
+          } />
+          <Route path="/settings" element={
+            <Layout>
+              <div className="space-y-6">
+                <div>
+                  <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">Configuración</h1>
+                  <p className="text-gray-600 mt-1">Configuración del sistema</p>
+                </div>
+                <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+                  <p className="text-gray-600">Configuración en desarrollo...</p>
+                </div>
               </div>
-              <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-                <p className="text-gray-600">Configuración en desarrollo...</p>
-              </div>
-            </div>
-          </Layout>
-        } />
-        <Route path="*" element={<Navigate to="/" replace />} />
-      </Routes>
+            </Layout>
+          } />
+          <Route path="*" element={<Navigate to="/" replace />} />
+        </Routes>
+      </Suspense>
       
       {/* Notification System */}
       <NotificationSystem 
