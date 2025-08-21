@@ -8,7 +8,9 @@ import { createStackNavigator } from '@react-navigation/stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { Provider as PaperProvider } from 'react-native-paper';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import SplashScreen from 'react-native-splash-screen';
+// Optional SplashScreen guard
+let SplashScreen: { hide: () => void } | null = null;
+try { SplashScreen = require('react-native-splash-screen'); } catch {}
 
 // Screens
 import LoginScreen from './src/screens/LoginScreen';
@@ -163,7 +165,7 @@ function App() {
       console.error('Error checking auth status:', error);
     } finally {
       setIsLoading(false);
-      SplashScreen.hide();
+      try { SplashScreen?.hide?.(); } catch {}
     }
   };
 
@@ -185,8 +187,6 @@ function App() {
   const handleLoginSuccess = () => {
     setIsAuthenticated(true);
   };
-
-  
 
   if (isLoading) {
     return null; // Splash screen will be shown
