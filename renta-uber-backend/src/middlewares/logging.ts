@@ -11,6 +11,26 @@ if (!fs.existsSync(logsDir)) {
 const logFile = path.join(logsDir, 'app.log');
 const errorLogFile = path.join(logsDir, 'errors.log');
 
+// Redact sensitive fields
+const redact = (obj: any) => {
+  try {
+    const clone = JSON.parse(JSON.stringify(obj || {}));
+    const sensitiveKeys = ['password', 'token', 'authorization', 'auth', 'secret'];
+    const walk = (o: any) => {
+      if (o && typeof o === 'object') {
+        for (const k of Object.keys(o)) {
+          if (sensitiveKeys.includes(k.toLowerCase())) o[k] = '***';
+          else walk(o[k]);
+        }
+      }
+    };
+    walk(clone);
+    return clone;
+  } catch {
+    return obj;
+  }
+};
+
 // Función para escribir logs
 const writeLog = (message: string, file: string = logFile) => {
   const timestamp = new Date().toISOString();
@@ -44,9 +64,9 @@ export const requestLogger = (req: Request, res: Response, next: NextFunction) =
   // Log del request
   writeLog(`REQUEST: ${req.method} ${req.path} - IP: ${req.ip} - User-Agent: ${req.get('User-Agent')}`);
   
-  // Log del body si es POST/PUT
+  // Log del body si es POST/PUT (redactado)
   if (['POST', 'PUT', 'PATCH'].includes(req.method) && req.body) {
-    writeLog(`BODY: ${JSON.stringify(req.body)}`);
+    writeLog(`BODY: ${JSON.stringify(redact(req.body))}`);
   }
   
   // Interceptar la respuesta
@@ -99,7 +119,7 @@ export const logWarning = (message: string) => {
 
 // Función para logging de operaciones de base de datos
 export const logDatabaseOperation = (operation: string, model: string, details: any = {}) => {
-  writeLog(`DB_OPERATION: ${operation} on ${model} - Details: ${JSON.stringify(details)}`);
+  writeLog(`DB_OPERATION: ${operation} on ${model} - Details: ${JSON.stringify(redact(details))}`);
 };
 
 // Función para logging de validaciones
