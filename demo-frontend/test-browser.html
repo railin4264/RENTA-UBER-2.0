@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test API Connection</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .test-section { margin: 20px 0; padding: 15px; border: 1px solid #ddd; border-radius: 5px; }
+        .success { color: green; }
+        .error { color: red; }
+        .loading { color: orange; }
+        button { padding: 10px 20px; margin: 5px; cursor: pointer; }
+        pre { background: #f5f5f5; padding: 10px; border-radius: 3px; overflow-x: auto; }
+    </style>
+</head>
+<body>
+    <h1>🔍 Test de Conexión API</h1>
+    
+    <div class="test-section">
+        <h2>Health Check</h2>
+        <button onclick="testHealth()">Probar /api/health</button>
+        <div id="health-result"></div>
+    </div>
+
+    <div class="test-section">
+        <h2>Dashboard API</h2>
+        <button onclick="testDashboard()">Probar /api/dashboard</button>
+        <div id="dashboard-result"></div>
+    </div>
+
+    <div class="test-section">
+        <h2>Drivers API</h2>
+        <button onclick="testDrivers()">Probar /api/drivers</button>
+        <div id="drivers-result"></div>
+    </div>
+
+    <div class="test-section">
+        <h2>Vehicles API</h2>
+        <button onclick="testVehicles()">Probar /api/vehicles</button>
+        <div id="vehicles-result"></div>
+    </div>
+
+    <script>
+        const API_BASE = 'http://localhost:3001';
+
+        async function makeRequest(endpoint, resultId) {
+            const resultDiv = document.getElementById(resultId);
+            resultDiv.innerHTML = '<span class="loading">⏳ Probando...</span>';
+            
+            try {
+                const response = await fetch(`${API_BASE}${endpoint}`, {
+                    method: 'GET',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    }
+                });
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    resultDiv.innerHTML = `
+                        <span class="success">✅ Éxito (${response.status})</span>
+                        <pre>${JSON.stringify(data, null, 2)}</pre>
+                    `;
+                } else {
+                    resultDiv.innerHTML = `
+                        <span class="error">❌ Error ${response.status}: ${response.statusText}</span>
+                    `;
+                }
+            } catch (error) {
+                resultDiv.innerHTML = `
+                    <span class="error">❌ Error de conexión: ${error.message}</span>
+                `;
+            }
+        }
+
+        function testHealth() {
+            makeRequest('/api/health', 'health-result');
+        }
+
+        function testDashboard() {
+            makeRequest('/api/dashboard', 'dashboard-result');
+        }
+
+        function testDrivers() {
+            makeRequest('/api/drivers', 'drivers-result');
+        }
+
+        function testVehicles() {
+            makeRequest('/api/vehicles', 'vehicles-result');
+        }
+
+        // Auto-test al cargar la página
+        window.onload = function() {
+            setTimeout(() => {
+                testHealth();
+                setTimeout(() => testDashboard(), 1000);
+            }, 500);
+        };
+    </script>
+</body>
+</html> 

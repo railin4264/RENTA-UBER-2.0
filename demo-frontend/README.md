@@ -1,0 +1,239 @@
+# Sistema de Renta Uber - Gestión Completa
+
+Un sistema completo de gestión para empresas de renta de vehículos para Uber, con funcionalidades avanzadas de administración de choferes, vehículos, pagos, gastos y reportes.
+
+## 🚀 Características Principales
+
+### Frontend (React + TypeScript)
+- ✅ Dashboard interactivo con métricas en tiempo real
+- ✅ Gestión completa de choferes con fotos y documentos
+- ✅ Administración de vehículos con galería de fotos
+- ✅ Sistema de pagos y cobros
+- ✅ Control de gastos y mantenimiento
+- ✅ Generación de reportes avanzados
+- ✅ Gestión de contratos
+- ✅ Sistema de notificaciones
+- ✅ Interfaz moderna con Tailwind CSS
+
+### Backend (Node.js + Express + Prisma)
+- ✅ API RESTful completa
+- ✅ Autenticación JWT
+- ✅ Base de datos PostgreSQL con Prisma ORM
+- ✅ Validación de datos robusta
+- ✅ Manejo de errores centralizado
+- ✅ Subida de archivos
+- ✅ Middleware de seguridad
+
+## 📋 Requisitos Previos
+
+- Node.js 18+ 
+- PostgreSQL 12+
+- npm o yarn
+
+## 🛠️ Instalación
+
+### 1. Clonar el repositorio
+```bash
+git clone <tu-repositorio>
+cd renta-uber
+```
+
+### 2. Configurar el Backend
+```bash
+cd renta-uber-backend
+npm install
+cp env.example .env
+```
+
+Editar `.env` con tus configuraciones:
+```env
+DATABASE_URL="postgresql://username:password@localhost:5432/renta_uber_db"
+JWT_SECRET="tu-clave-secreta"
+PORT=3001
+```
+
+### 3. Configurar la Base de Datos (Linux con PostgreSQL)
+```bash
+# Instalar y arrancar PostgreSQL (Ubuntu/Debian)
+sudo apt-get update
+sudo DEBIAN_FRONTEND=noninteractive apt-get -y install postgresql postgresql-contrib
+sudo service postgresql start
+
+# Crear base y usuario
+sudo -u postgres createdb renta_uber_db || true
+sudo -u postgres psql -tc "SELECT 1 FROM pg_roles WHERE rolname='renta_user'" | grep -q 1 || \
+  sudo -u postgres psql -c "CREATE USER renta_user WITH PASSWORD 'tu_nueva_clave_2024';"
+sudo -u postgres psql -c "ALTER DATABASE renta_uber_db OWNER TO renta_user;"
+sudo -u postgres psql -c "ALTER SCHEMA public OWNER TO renta_user;"
+sudo -u postgres psql -c "GRANT ALL ON SCHEMA public TO renta_user;"
+sudo -u postgres psql -c "GRANT ALL PRIVILEGES ON DATABASE renta_uber_db TO renta_user;"
+
+# Generar cliente y aplicar esquema
+npx prisma generate
+npx prisma db push
+```
+
+### 4. Configurar el Frontend
+```bash
+cd ..
+npm install
+```
+
+### 5. Variables de Entorno del Frontend
+Crear `.env` en la raíz del proyecto:
+```env
+VITE_API_URL=http://localhost:3001/api
+```
+
+## 🚀 Ejecutar el Proyecto
+
+### Desarrollo
+```bash
+# Terminal 1 - Backend
+cd renta-uber-backend
+npm run dev
+
+# Terminal 2 - Frontend
+npm run dev
+```
+
+### Producción
+```bash
+# Build del frontend
+npm run build
+
+# Iniciar backend en producción
+cd renta-uber-backend
+npm start
+```
+
+## 📁 Estructura del Proyecto
+
+```
+renta-uber/
+├── src/                          # Frontend React
+│   ├── components/               # Componentes React
+│   ├── context/                  # Context API
+│   ├── services/                 # Servicios API
+│   ├── types/                    # Tipos TypeScript
+│   └── App.tsx                   # Componente principal
+├── renta-uber-backend/           # Backend Node.js
+│   ├── src/
+│   │   ├── controllers/          # Controladores
+│   │   ├── routes/               # Rutas API
+│   │   ├── services/             # Lógica de negocio
+│   │   ├── middlewares/          # Middlewares
+│   │   ├── utils/                # Utilidades
+│   │   └── app.ts                # Configuración Express
+│   ├── prisma/                   # Esquema de base de datos
+│   └── uploads/                  # Archivos subidos
+└── README.md
+```
+
+## 🔧 Funcionalidades Detalladas
+
+### Gestión de Choferes
+- Registro con fotos y documentos
+- Información personal y de contacto
+- Historial de pagos
+- Estados (activo, inactivo, suspendido)
+- Garantes asociados
+
+### Gestión de Vehículos
+- Registro con múltiples fotos
+- Información técnica completa
+- Estados de mantenimiento
+- Asignación a choferes
+- Historial de gastos
+
+### Sistema de Pagos
+- Registro de pagos completos y parciales
+- Cálculo automático de deudas
+- Historial de transacciones
+- Notificaciones de vencimientos
+
+### Control de Gastos
+- Categorización de gastos
+- Asociación con vehículos
+- Facturas y comprobantes
+- Reportes de costos
+
+### Reportes Avanzados
+- Dashboard con métricas
+- Reportes financieros
+- Estadísticas de rendimiento
+- Exportación de datos
+
+## 🔒 Seguridad
+
+- Autenticación JWT
+- Validación de datos
+- CORS configurado
+- Manejo seguro de archivos
+- Middleware de autorización
+
+## 📊 Base de Datos
+
+El sistema utiliza PostgreSQL con Prisma ORM:
+
+- **Users**: Usuarios del sistema
+- **Drivers**: Información de choferes
+- **Vehicles**: Datos de vehículos
+- **Payments**: Registro de pagos
+- **Expenses**: Control de gastos
+- **Contracts**: Contratos de renta
+- **Status**: Estados del sistema
+- **Reports**: Reportes generados
+
+## 🚀 Despliegue
+
+### Heroku
+```bash
+# Backend
+cd renta-uber-backend
+heroku create
+heroku addons:create heroku-postgresql
+git push heroku main
+
+# Frontend
+npm run build
+# Subir dist/ a tu hosting
+```
+
+### Docker
+```bash
+docker-compose up -d
+```
+
+## 🤝 Contribuir
+
+1. Fork el proyecto
+2. Crear una rama para tu feature (`git checkout -b feature/AmazingFeature`)
+3. Commit tus cambios (`git commit -m 'Add some AmazingFeature'`)
+4. Push a la rama (`git push origin feature/AmazingFeature`)
+5. Abrir un Pull Request
+
+## 📝 Licencia
+
+Este proyecto está bajo la Licencia MIT - ver el archivo [LICENSE](LICENSE) para detalles.
+
+## 📞 Soporte
+
+Para soporte técnico o preguntas:
+- Email: tu-email@ejemplo.com
+- Issues: [GitHub Issues](https://github.com/tu-usuario/renta-uber/issues)
+
+## 🎯 Roadmap
+
+- [ ] App móvil React Native
+- [ ] Integración con WhatsApp Business API
+- [ ] Sistema de notificaciones push
+- [ ] Integración con GPS en tiempo real
+- [ ] Dashboard analítico avanzado
+- [ ] Módulo de mantenimiento predictivo
+- [ ] Integración con sistemas contables
+- [ ] API pública para terceros
+
+---
+
+**Desarrollado con ❤️ para optimizar la gestión de flotas de renta Uber**
