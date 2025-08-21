@@ -8,7 +8,12 @@ import { createStackNavigator } from '@react-navigation/stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { Provider as PaperProvider } from 'react-native-paper';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import SplashScreen from 'react-native-splash-screen';
+// SplashScreen is optional; guard if missing in dev
+let SplashScreen: { hide: () => void } | null = null;
+try {
+  // eslint-disable-next-line @typescript-eslint/no-var-requires
+  SplashScreen = require('react-native-splash-screen');
+} catch {}
 
 // Screens
 import LoginScreen from './src/screens/LoginScreen';
@@ -163,7 +168,7 @@ function App() {
       console.error('Error checking auth status:', error);
     } finally {
       setIsLoading(false);
-      SplashScreen.hide();
+      try { SplashScreen?.hide?.(); } catch {}
     }
   };
 
