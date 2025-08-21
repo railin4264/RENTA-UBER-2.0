@@ -1,223 +1,456 @@
 import { Request, Response } from 'express';
-import { 
-  registerUser, 
-  loginUser, 
-  verifyToken as verifyTokenService, 
-  changePassword as changePasswordService, 
-  getUserProfile, 
-  updateUserProfile 
-} from '../services/authService';
-import { asyncHandler } from '../utils/errorHandler';
+import bcrypt from 'bcryptjs';
+import jwt from 'jsonwebtoken';
+import prisma from '../config/database';
+import { validateData } from '../config/validation';
+import { loginSchema, registerSchema } from '../config/validation';
+import logger from '../config/logging';
 
-interface LoginRequest {
-  email: string;
-  password: string;
-}
-
-interface RegisterRequest {
-  email: string;
-  password: string;
-  firstName: string;
-  lastName: string;
-  role?: string;
-}
-
-interface AuthRequest extends Request {
-  user?: {
-    id: string;
-  };
-}
-
-// Login completo
-export const login = asyncHandler(async (req: Request, res: Response) => {
-  const { email, password }: LoginRequest = req.body;
-
-  // Validar campos requeridos
-  if (!email || !password) {
-    return res.status(400).json({
-      success: false,
-      message: 'Email y contraseña son requeridos'
-    });
-  }
-
+export const login = async (req: Request, res: Response) => {
   try {
-    const result = await loginUser(email.toLowerCase(), password);
-    
+    // Validar datos de entrada
+    const { email, password } = validateData(loginSchema, req.body);
+
+    // Buscar usuario por email
+    const user = await prisma.user.findUnique({
+      where: { email },
+      include: {
+        status: true,
+      },
+    });
+
+    if (!user) {
+      logger.warn(`Intento de login fallido: usuario no encontrado - ${email}`);
+      return res.status(401).json({
+        success: false,
+        message: 'Credenciales inválidas',
+      });
+    }
+
+    // Verificar contraseña
+    const isValidPassword = await bcrypt.compare(password, user.password);
+    if (!isValidPassword) {
+      logger.warn(`Intento de login fallido: contraseña incorrecta - ${email}`);
+      return res.status(401).json({
+        success: false,
+        message: 'Credenciales inválidas',
+      });
+    }
+
+    // Verificar si el usuario está activo
+    if (user.status?.name !== 'Activo') {
+      logger.warn(`Intento de login fallido: usuario inactivo - ${email}`);
+      return res.status(401).json({
+        success: false,
+        message: 'Usuario inactivo',
+      });
+    }
+
+    // Generar token JWT
+    const token = jwt.sign(
+      {
+        userId: user.id,
+        email: user.email,
+        role: user.role,
+      },
+      process.env.JWT_SECRET || 'default-secret',
+      {
+        expiresIn: process.env.JWT_EXPIRES_IN || '7d',
+      }
+    );
+
+    // Actualizar último login
+    await prisma.user.update({
+      where: { id: user.id },
+      data: { lastLogin: new Date() },
+    });
+
+    // Log de login exitoso
+    logger.info(`Login exitoso: ${email}`, {
+      userId: user.id,
+      role: user.role,
+      ip: req.ip,
+      userAgent: req.get('User-Agent'),
+    });
+
+    // Retornar respuesta exitosa
     res.json({
       success: true,
       message: 'Login exitoso',
-      data: result
+      data: {
+        token,
+        user: {
+          id: user.id,
+          firstName: user.firstName,
+          lastName: user.lastName,
+          email: user.email,
+          role: user.role,
+          status: user.status?.name,
+        },
+      },
     });
   } catch (error: any) {
-    return res.status(401).json({
+    logger.error('Error en login:', error);
+    res.status(500).json({
       success: false,
-      message: error.message || 'Credenciales inválidas'
+      message: 'Error interno del servidor',
     });
   }
-});
+};
 
-// Registro completo
-export const register = asyncHandler(async (req: Request, res: Response) => {
-  const { email, password, firstName, lastName, role = 'user' }: RegisterRequest = req.body;
-
-  // Validar campos requeridos
-  if (!email || !password || !firstName || !lastName) {
-    return res.status(400).json({
-      success: false,
-      message: 'Todos los campos son requeridos'
-    });
-  }
-
+export const register = async (req: Request, res: Response) => {
   try {
-    await registerUser({
-      email: email.toLowerCase(),
-      password,
-      firstName,
-      lastName,
-      role
+    // Validar datos de entrada
+    const userData = validateData(registerSchema, req.body);
+
+    // Verificar si el usuario ya existe
+    const existingUser = await prisma.user.findUnique({
+      where: { email: userData.email },
     });
 
-    // Generar token para el nuevo usuario
-    const loginResult = await loginUser(email.toLowerCase(), password);
+    if (existingUser) {
+      return res.status(400).json({
+        success: false,
+        message: 'El email ya está registrado',
+      });
+    }
 
+    // Encriptar contraseña
+    const saltRounds = 12;
+    const hashedPassword = await bcrypt.hash(userData.password, saltRounds);
+
+    // Obtener estado activo
+    const activeStatus = await prisma.status.findFirst({
+      where: { name: 'Activo', module: 'user' },
+    });
+
+    if (!activeStatus) {
+      throw new Error('Estado activo no encontrado');
+    }
+
+    // Crear usuario
+    const newUser = await prisma.user.create({
+      data: {
+        ...userData,
+        password: hashedPassword,
+        statusId: activeStatus.id,
+      },
+      include: {
+        status: true,
+      },
+    });
+
+    // Generar token JWT
+    const token = jwt.sign(
+      {
+        userId: newUser.id,
+        email: newUser.email,
+        role: newUser.role,
+      },
+      process.env.JWT_SECRET || 'default-secret',
+      {
+        expiresIn: process.env.JWT_EXPIRES_IN || '7d',
+      }
+    );
+
+    // Log de registro exitoso
+    logger.info(`Usuario registrado exitosamente: ${userData.email}`, {
+      userId: newUser.id,
+      role: newUser.role,
+      ip: req.ip,
+    });
+
+    // Retornar respuesta exitosa
     res.status(201).json({
       success: true,
       message: 'Usuario registrado exitosamente',
-      data: loginResult
+      data: {
+        token,
+        user: {
+          id: newUser.id,
+          firstName: newUser.firstName,
+          lastName: newUser.lastName,
+          email: newUser.email,
+          role: newUser.role,
+          status: newUser.status?.name,
+        },
+      },
     });
   } catch (error: any) {
-    return res.status(400).json({
+    logger.error('Error en registro:', error);
+    res.status(500).json({
       success: false,
-      message: error.message || 'Error al registrar usuario'
+      message: 'Error interno del servidor',
     });
   }
-});
+};
 
-// Verificar token completo
-export const verifyToken = asyncHandler(async (req: Request, res: Response) => {
-  const token = req.headers.authorization?.split(' ')[1];
-
-  if (!token) {
-    return res.status(401).json({
-      success: false,
-      message: 'Token no proporcionado'
-    });
-  }
-
+export const verifyToken = async (req: Request, res: Response) => {
   try {
-    const user = await verifyTokenService(token);
-    
+    const token = req.headers.authorization?.replace('Bearer ', '');
+
+    if (!token) {
+      return res.status(401).json({
+        success: false,
+        message: 'Token no proporcionado',
+      });
+    }
+
+    // Verificar token
+    const decoded = jwt.verify(token, process.env.JWT_SECRET || 'default-secret') as any;
+
+    // Buscar usuario
+    const user = await prisma.user.findUnique({
+      where: { id: decoded.userId },
+      include: {
+        status: true,
+      },
+    });
+
+    if (!user) {
+      return res.status(401).json({
+        success: false,
+        message: 'Usuario no encontrado',
+      });
+    }
+
+    // Verificar si el usuario está activo
+    if (user.status?.name !== 'Activo') {
+      return res.status(401).json({
+        success: false,
+        message: 'Usuario inactivo',
+      });
+    }
+
     res.json({
       success: true,
       message: 'Token válido',
       data: {
-        user
-      }
+        user: {
+          id: user.id,
+          firstName: user.firstName,
+          lastName: user.lastName,
+          email: user.email,
+          role: user.role,
+          status: user.status?.name,
+        },
+      },
     });
   } catch (error: any) {
-    return res.status(401).json({
+    if (error.name === 'JsonWebTokenError') {
+      return res.status(401).json({
+        success: false,
+        message: 'Token inválido',
+      });
+    }
+
+    if (error.name === 'TokenExpiredError') {
+      return res.status(401).json({
+        success: false,
+        message: 'Token expirado',
+      });
+    }
+
+    logger.error('Error en verificación de token:', error);
+    res.status(500).json({
       success: false,
-      message: error.message || 'Token inválido'
+      message: 'Error interno del servidor',
     });
   }
-});
+};
 
-// Logout
-export const logout = asyncHandler(async (req: Request, res: Response) => {
-  res.json({
-    success: true,
-    message: 'Logout exitoso'
-  });
-});
-
-// Cambiar contraseña completo
-export const changePassword = asyncHandler(async (req: AuthRequest, res: Response) => {
-  const { currentPassword, newPassword } = req.body;
-  const userId = req.user?.id;
-
-  if (!userId) {
-    return res.status(401).json({
-      success: false,
-      message: 'Usuario no autenticado'
-    });
-  }
-
-  if (!currentPassword || !newPassword) {
-    return res.status(400).json({
-      success: false,
-      message: 'Contraseña actual y nueva contraseña son requeridas'
-    });
-  }
-
+export const getProfile = async (req: Request, res: Response) => {
   try {
-    const result = await changePasswordService(userId, currentPassword, newPassword);
-    
-    res.json({
-      success: true,
-      message: result.message
-    });
-  } catch (error: any) {
-    return res.status(400).json({
-      success: false,
-      message: error.message || 'Error al cambiar contraseña'
-    });
-  }
-});
+    const userId = (req as any).user?.userId;
 
-// Perfil de usuario completo
-export const getProfile = asyncHandler(async (req: AuthRequest, res: Response) => {
-  const userId = req.user?.id;
+    if (!userId) {
+      return res.status(401).json({
+        success: false,
+        message: 'Usuario no autenticado',
+      });
+    }
 
-  if (!userId) {
-    return res.status(401).json({
-      success: false,
-      message: 'Usuario no autenticado'
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      include: {
+        status: true,
+      },
     });
-  }
 
-  try {
-    const user = await getUserProfile(userId);
-    
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: 'Usuario no encontrado',
+      });
+    }
+
     res.json({
       success: true,
       data: {
-        user
-      }
+        user: {
+          id: user.id,
+          firstName: user.firstName,
+          lastName: user.lastName,
+          email: user.email,
+          role: user.role,
+          status: user.status?.name,
+          createdAt: user.createdAt,
+          lastLogin: user.lastLogin,
+        },
+      },
     });
   } catch (error: any) {
-    return res.status(404).json({
+    logger.error('Error al obtener perfil:', error);
+    res.status(500).json({
       success: false,
-      message: error.message || 'Usuario no encontrado'
+      message: 'Error interno del servidor',
     });
   }
-});
+};
 
-// Actualizar perfil de usuario
-export const updateProfile = asyncHandler(async (req: AuthRequest, res: Response) => {
-  const userId = req.user?.id;
-  const { firstName, lastName, email } = req.body;
-
-  if (!userId) {
-    return res.status(401).json({
-      success: false,
-      message: 'Usuario no autenticado'
-    });
-  }
-
+export const updateProfile = async (req: Request, res: Response) => {
   try {
-    const user = await updateUserProfile(userId, { firstName, lastName, email });
-    
+    const userId = (req as any).user?.userId;
+
+    if (!userId) {
+      return res.status(401).json({
+        success: false,
+        message: 'Usuario no autenticado',
+      });
+    }
+
+    const { firstName, lastName, email } = req.body;
+
+    // Verificar si el email ya está en uso por otro usuario
+    if (email) {
+      const existingUser = await prisma.user.findFirst({
+        where: {
+          email,
+          id: { not: userId },
+        },
+      });
+
+      if (existingUser) {
+        return res.status(400).json({
+          success: false,
+          message: 'El email ya está en uso',
+        });
+      }
+    }
+
+    // Actualizar usuario
+    const updatedUser = await prisma.user.update({
+      where: { id: userId },
+      data: {
+        firstName,
+        lastName,
+        email,
+      },
+      include: {
+        status: true,
+      },
+    });
+
+    logger.info(`Perfil actualizado: ${userId}`);
+
     res.json({
       success: true,
       message: 'Perfil actualizado exitosamente',
       data: {
-        user
-      }
+        user: {
+          id: updatedUser.id,
+          firstName: updatedUser.firstName,
+          lastName: updatedUser.lastName,
+          email: updatedUser.email,
+          role: updatedUser.role,
+          status: updatedUser.status?.name,
+        },
+      },
     });
   } catch (error: any) {
-    return res.status(400).json({
+    logger.error('Error al actualizar perfil:', error);
+    res.status(500).json({
       success: false,
-      message: error.message || 'Error al actualizar perfil'
+      message: 'Error interno del servidor',
     });
   }
-});
+};
+
+export const changePassword = async (req: Request, res: Response) => {
+  try {
+    const userId = (req as any).user?.userId;
+    const { currentPassword, newPassword } = req.body;
+
+    if (!userId) {
+      return res.status(401).json({
+        success: false,
+        message: 'Usuario no autenticado',
+      });
+    }
+
+    // Buscar usuario
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+    });
+
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: 'Usuario no encontrado',
+      });
+    }
+
+    // Verificar contraseña actual
+    const isValidPassword = await bcrypt.compare(currentPassword, user.password);
+    if (!isValidPassword) {
+      return res.status(400).json({
+        success: false,
+        message: 'Contraseña actual incorrecta',
+      });
+    }
+
+    // Encriptar nueva contraseña
+    const saltRounds = 12;
+    const hashedPassword = await bcrypt.hash(newPassword, saltRounds);
+
+    // Actualizar contraseña
+    await prisma.user.update({
+      where: { id: userId },
+      data: { password: hashedPassword },
+    });
+
+    logger.info(`Contraseña cambiada: ${userId}`);
+
+    res.json({
+      success: true,
+      message: 'Contraseña cambiada exitosamente',
+    });
+  } catch (error: any) {
+    logger.error('Error al cambiar contraseña:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error interno del servidor',
+    });
+  }
+};
+
+export const logout = async (req: Request, res: Response) => {
+  try {
+    const userId = (req as any).user?.userId;
+
+    if (userId) {
+      logger.info(`Logout: ${userId}`);
+    }
+
+    res.json({
+      success: true,
+      message: 'Logout exitoso',
+    });
+  } catch (error: any) {
+    logger.error('Error en logout:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error interno del servidor',
+    });
+  }
+};
