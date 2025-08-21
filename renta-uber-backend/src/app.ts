@@ -1,5 +1,6 @@
 import express from 'express';
 import cors from 'cors';
+import helmet from 'helmet';
 import { PrismaClient } from '@prisma/client';
 import authRoutes from './routes/authRoutes';
 import driverRoutes from './routes/driverRoutes';
@@ -16,7 +17,10 @@ import { requestLogger, errorLogger } from './middlewares/logging';
 const app = express();
 const prisma = new PrismaClient();
 
-// Middleware
+// Security & Middleware
+app.use(helmet({
+  contentSecurityPolicy: false,
+}));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 // Serve static uploads (photos, documents)
@@ -25,20 +29,25 @@ app.use('/uploads', express.static('uploads'));
 // Logging middleware
 app.use(requestLogger);
 
-// CORS configuration
+// CORS configuration (allow env FRONTEND_URL if present)
+const allowedOrigins = new Set([
+  process.env.FRONTEND_URL || '',
+  'http://localhost:5173',
+  'http://localhost:5174',
+  'http://localhost:5175',
+  'http://localhost:5176',
+  'http://localhost:5177',
+  'http://localhost:5178',
+  'http://localhost:5179',
+  'http://localhost:5180',
+]);
 app.use(cors({
-  origin: [
-    'http://localhost:5173',
-    'http://localhost:5174',
-    'http://localhost:5175',
-    'http://localhost:5176',
-    'http://localhost:5177',
-    'http://localhost:5178',
-    'http://localhost:5179',
-    'http://localhost:5180',
-    'null',
-    'file://'
-  ],
+  origin: (origin, callback) => {
+    if (!origin || allowedOrigins.has(origin)) {
+      return callback(null, true);
+    }
+    return callback(new Error('CORS not allowed'), false);
+  },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH'],
   allowedHeaders: ['Content-Type', 'Authorization']
