@@ -1,202 +1,153 @@
 import React, { useState, useEffect } from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  ScrollView,
-  RefreshControl,
-  TouchableOpacity,
-  Alert,
-} from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, RefreshControl } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Icon from 'react-native-vector-icons/Feather';
 import { LineChart, BarChart } from 'react-native-chart-kit';
 import { Dimensions } from 'react-native';
+import { useDashboard, useRealtimeSync } from '../hooks/useApi';
+import { useAuth } from '../contexts/AuthContext';
 import MetricCard from '../components/MetricCard';
 
-const { width } = Dimensions.get('window');
+const screenWidth = Dimensions.get('window').width;
 
-interface DashboardStats {
-  totalDrivers: number;
-  activeDrivers: number;
-  totalVehicles: number;
-  availableVehicles: number;
-  monthlyIncome: number;
-  pendingPayments: number;
-  activeContracts: number;
-  vehiclesInMaintenance: number;
-}
-
-interface Activity {
-  id: string;
-  type: string;
-  description: string;
-  amount: number;
-  date: string;
-  status: string;
-}
-
-interface Payment {
-  id: string;
-  driverName: string;
-  amount: number;
-  dueDate: string;
-  status: string;
+interface DashboardData {
+  stats: {
+    activeDrivers: number;
+    totalVehicles: number;
+    monthlyIncome: number;
+    pendingDebts: number;
+    activeContracts: number;
+    vehiclesInMaintenance: number;
+    incomeGrowth: number;
+    pendingCases: number;
+  };
+  recentActivities: Array<{
+    id: string;
+    type: string;
+    description: string;
+    amount?: number;
+    timestamp: string;
+  }>;
+  upcomingPayments: Array<{
+    id: string;
+    driverName: string;
+    amount: number;
+    dueDate: string;
+  }>;
 }
 
 export default function DashboardScreen() {
-  const [stats, setStats] = useState<DashboardStats>({
-    totalDrivers: 0,
-    activeDrivers: 0,
-    totalVehicles: 0,
-    availableVehicles: 0,
-    monthlyIncome: 0,
-    pendingPayments: 0,
-    activeContracts: 0,
-    vehiclesInMaintenance: 0
-  });
-  const [recentActivities, setRecentActivities] = useState<Activity[]>([]);
-  const [upcomingPayments, setUpcomingPayments] = useState<Payment[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+  const { user } = useAuth();
+  const [dashboardData, setDashboardData] = useState<DashboardData | null>(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
-  const [lastUpdate, setLastUpdate] = useState<Date | null>(null);
 
+  // Usar hook de API para dashboard con sincronización en tiempo real
+  const [dashboardState, refreshDashboard] = useRealtimeSync<DashboardData>('/dashboard', 30000); // 30 segundos
+
+  // Actualizar datos locales cuando cambie el estado de la API
   useEffect(() => {
-    loadDashboardData();
-  }, []);
-
-  const loadDashboardData = async () => {
-    try {
-      setIsLoading(true);
-      
-      // Simular carga de datos desde API
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      
-      // Datos de ejemplo
-      setStats({
-        totalDrivers: 12,
-        activeDrivers: 8,
-        totalVehicles: 15,
-        availableVehicles: 6,
-        monthlyIncome: 125000,
-        pendingPayments: 32000,
-        activeContracts: 8,
-        vehiclesInMaintenance: 2
-      });
-
-      setRecentActivities([
-        {
-          id: '1',
-          type: 'payment',
-          description: 'Pago recibido de Juan Pérez',
-          amount: 15000,
-          date: new Date().toISOString(),
-          status: 'completed'
-        },
-        {
-          id: '2',
-          type: 'expense',
-          description: 'Mantenimiento vehículo ABC-123',
-          amount: 25000,
-          date: new Date(Date.now() - 86400000).toISOString(),
-          status: 'pending'
-        },
-        {
-          id: '3',
-          type: 'contract',
-          description: 'Nuevo contrato firmado',
-          amount: 18000,
-          date: new Date(Date.now() - 172800000).toISOString(),
-          status: 'active'
-        }
-      ]);
-
-      setUpcomingPayments([
-        {
-          id: '1',
-          driverName: 'María González',
-          amount: 18000,
-          dueDate: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toISOString(),
-          status: 'pending'
-        },
-        {
-          id: '2',
-          driverName: 'Carlos Rodríguez',
-          amount: 22000,
-          dueDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
-          status: 'pending'
-        }
-      ]);
-
-      setLastUpdate(new Date());
-    } catch (error) {
-      Alert.alert('Error', 'No se pudieron cargar los datos del dashboard');
-    } finally {
-      setIsLoading(false);
+    if (dashboardState.data) {
+      setDashboardData(dashboardState.data);
     }
-  };
+  }, [dashboardState.data]);
 
   const handleRefresh = async () => {
     setIsRefreshing(true);
-    await loadDashboardData();
-    setIsRefreshing(false);
+    try {
+      await refreshDashboard();
+    } catch (error) {
+      console.error('Error refreshing dashboard:', error);
+    } finally {
+      setIsRefreshing(false);
+    }
   };
 
-  const handleMetricPress = (metricName: string) => {
-    Alert.alert('Métrica', `Has tocado: ${metricName}`);
+  const handleMetricPress = (metric: string) => {
+    Alert.alert('Métrica', `Has seleccionado: ${metric}`);
   };
 
-  const handleActivityPress = (activity: Activity) => {
+  const handleActivityPress = (activity: any) => {
     Alert.alert('Actividad', activity.description);
   };
 
-  const handlePaymentPress = (payment: Payment) => {
-    Alert.alert('Pago', `${payment.driverName} - $${payment.amount.toLocaleString()}`);
+  const handlePaymentPress = (payment: any) => {
+    Alert.alert('Pago Próximo', `${payment.driverName}: $${payment.amount}`);
   };
 
-  const chartConfig = {
-    backgroundColor: '#ffffff',
-    backgroundGradientFrom: '#ffffff',
-    backgroundGradientTo: '#ffffff',
-    decimalPlaces: 0,
-    color: (opacity = 1) => `rgba(59, 130, 246, ${opacity})`,
-    labelColor: (opacity = 1) => `rgba(107, 114, 128, ${opacity})`,
-    style: {
-      borderRadius: 16,
-    },
-    propsForDots: {
-      r: '6',
-      strokeWidth: '2',
-      stroke: '#3b82f6',
-    },
+  const getStatusColor = (status: string) => {
+    switch (status.toLowerCase()) {
+      case 'payment': return '#10B981';
+      case 'contract': return '#3B82F6';
+      case 'maintenance': return '#F59E0B';
+      case 'expense': return '#EF4444';
+      default: return '#6B7280';
+    }
   };
 
-  const incomeData = {
-    labels: ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun'],
-    datasets: [
-      {
-        data: [98000, 105000, 125000, 118000, 132000, 125000],
-        color: (opacity = 1) => `rgba(59, 130, 246, ${opacity})`,
-        strokeWidth: 2,
-      },
-    ],
+  const getStatusIcon = (type: string) => {
+    switch (type.toLowerCase()) {
+      case 'payment': return 'credit-card';
+      case 'contract': return 'file-text';
+      case 'maintenance': return 'wrench';
+      case 'expense': return 'receipt';
+      default: return 'circle';
+    }
   };
 
-  const driversData = {
-    labels: ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun'],
-    datasets: [
-      {
-        data: [8, 9, 10, 11, 12, 12],
-      },
-    ],
+  const getMonthlyData = () => {
+    if (!dashboardData) return [];
+    
+    // Simular datos mensuales basados en los stats
+    const months = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun'];
+    const baseIncome = dashboardData.stats.monthlyIncome;
+    
+    return months.map((month, index) => ({
+      month,
+      income: baseIncome + (Math.random() - 0.5) * 5000,
+    }));
   };
 
-  if (isLoading) {
+  const getDriversData = () => {
+    if (!dashboardData) return [];
+    
+    return [
+      { label: 'Activos', value: dashboardData.stats.activeDrivers, color: '#10B981' },
+      { label: 'Inactivos', value: dashboardData.stats.totalVehicles - dashboardData.stats.activeDrivers, color: '#EF4444' },
+    ];
+  };
+
+  if (dashboardState.loading && !dashboardData) {
     return (
       <SafeAreaView style={styles.container}>
         <View style={styles.loadingContainer}>
-          <Icon name="refresh-cw" size={48} color="#6b7280" style={styles.spinning} />
+          <Icon name="loader" size={40} color="#3B82F6" />
           <Text style={styles.loadingText}>Cargando dashboard...</Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  if (dashboardState.error && !dashboardData) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <View style={styles.errorContainer}>
+          <Icon name="alert-circle" size={40} color="#EF4444" />
+          <Text style={styles.errorText}>Error al cargar el dashboard</Text>
+          <Text style={styles.errorSubtext}>{dashboardState.error}</Text>
+          <TouchableOpacity style={styles.retryButton} onPress={refreshDashboard}>
+            <Text style={styles.retryButtonText}>Reintentar</Text>
+          </TouchableOpacity>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  if (!dashboardData) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <View style={styles.errorContainer}>
+          <Icon name="database" size={40} color="#6B7280" />
+          <Text style={styles.errorText}>No hay datos disponibles</Text>
         </View>
       </SafeAreaView>
     );
@@ -204,7 +155,7 @@ export default function DashboardScreen() {
 
   return (
     <SafeAreaView style={styles.container}>
-      <ScrollView
+      <ScrollView 
         style={styles.scrollView}
         refreshControl={
           <RefreshControl refreshing={isRefreshing} onRefresh={handleRefresh} />
@@ -214,132 +165,135 @@ export default function DashboardScreen() {
         {/* Header */}
         <View style={styles.header}>
           <View>
-            <Text style={styles.title}>Dashboard</Text>
-            <Text style={styles.subtitle}>
-              Resumen general del sistema
-              {lastUpdate && (
-                <Text style={styles.lastUpdate}>
-                  {' • Última actualización: '}
-                  {lastUpdate.toLocaleTimeString('es-ES', {
-                    hour: '2-digit',
-                    minute: '2-digit'
-                  })}
-                </Text>
-              )}
-            </Text>
+            <Text style={styles.welcomeText}>¡Bienvenido de vuelta!</Text>
+            <Text style={styles.userName}>{user?.firstName || 'Usuario'}</Text>
           </View>
-          
-          <TouchableOpacity
-            style={styles.refreshButton}
-            onPress={handleRefresh}
-            disabled={isRefreshing}
-          >
-            <Icon 
-              name="refresh-cw" 
-              size={20} 
-              color="#6b7280"
-              style={isRefreshing ? styles.spinning : undefined}
-            />
-          </TouchableOpacity>
+          <View style={styles.headerActions}>
+            <TouchableOpacity style={styles.notificationButton}>
+              <Icon name="bell" size={24} color="#6B7280" />
+              <View style={styles.notificationBadge}>
+                <Text style={styles.notificationBadgeText}>3</Text>
+              </View>
+            </TouchableOpacity>
+          </View>
         </View>
 
         {/* Métricas principales */}
-        <View style={styles.metricsGrid}>
-          <MetricCard
-            title="Conductores Activos"
-            value={stats.activeDrivers}
-            icon="users"
-            trend="up"
-            trendValue="+12%"
-            status="success"
-            onPress={() => handleMetricPress('Conductores Activos')}
-          />
-          
-          <MetricCard
-            title="Vehículos Disponibles"
-            value={stats.availableVehicles}
-            icon="truck"
-            trend="down"
-            trendValue="-5%"
-            status="warning"
-            onPress={() => handleMetricPress('Vehículos Disponibles')}
-          />
-          
-          <MetricCard
-            title="Ingresos Mensuales"
-            value={`$${stats.monthlyIncome.toLocaleString()}`}
-            icon="dollar-sign"
-            trend="up"
-            trendValue="+8%"
-            status="success"
-            onPress={() => handleMetricPress('Ingresos Mensuales')}
-          />
-          
-          <MetricCard
-            title="Contratos Activos"
-            value={stats.activeContracts}
-            icon="file-text"
-            status="info"
-            onPress={() => handleMetricPress('Contratos Activos')}
-          />
-        </View>
-
-        {/* Métricas secundarias */}
-        <View style={styles.secondaryMetrics}>
-          <MetricCard
-            title="Total Conductores"
-            value={stats.totalDrivers}
-            icon="users"
-            status="info"
-          />
-          
-          <MetricCard
-            title="Vehículos en Mantenimiento"
-            value={stats.vehiclesInMaintenance}
-            icon="tool"
-            status="warning"
-          />
-          
-          <MetricCard
-            title="Pagos Pendientes"
-            value={`$${stats.pendingPayments.toLocaleString()}`}
-            icon="alert-triangle"
-            status="error"
-          />
+        <View style={styles.metricsContainer}>
+          <Text style={styles.sectionTitle}>Resumen General</Text>
+          <View style={styles.metricsGrid}>
+            <MetricCard
+              title="Conductores Activos"
+              value={dashboardData.stats.activeDrivers.toString()}
+              icon="users"
+              color="#10B981"
+              onPress={() => handleMetricPress('Conductores Activos')}
+            />
+            <MetricCard
+              title="Vehículos Totales"
+              value={dashboardData.stats.totalVehicles.toString()}
+              icon="car"
+              color="#3B82F6"
+              onPress={() => handleMetricPress('Vehículos Totales')}
+            />
+            <MetricCard
+              title="Ingresos Mensuales"
+              value={`$${dashboardData.stats.monthlyIncome.toLocaleString()}`}
+              icon="dollar-sign"
+              color="#10B981"
+              onPress={() => handleMetricPress('Ingresos Mensuales')}
+            />
+            <MetricCard
+              title="Deudas Pendientes"
+              value={`$${dashboardData.stats.pendingDebts.toLocaleString()}`}
+              icon="alert-triangle"
+              color="#F59E0B"
+              onPress={() => handleMetricPress('Deudas Pendientes')}
+            />
+            <MetricCard
+              title="Contratos Activos"
+              value={dashboardData.stats.activeContracts.toString()}
+              icon="file-text"
+              color="#8B5CF6"
+              onPress={() => handleMetricPress('Contratos Activos')}
+            />
+            <MetricCard
+              title="En Mantenimiento"
+              value={dashboardData.stats.vehiclesInMaintenance.toString()}
+              icon="wrench"
+              color="#F59E0B"
+              onPress={() => handleMetricPress('En Mantenimiento')}
+            />
+          </View>
         </View>
 
         {/* Gráficos */}
         <View style={styles.chartsContainer}>
           <Text style={styles.sectionTitle}>Tendencias</Text>
           
+          {/* Gráfico de ingresos mensuales */}
           <View style={styles.chartCard}>
             <Text style={styles.chartTitle}>Ingresos Mensuales</Text>
             <LineChart
-              data={incomeData}
-              width={width - 48}
-              height={220}
-              chartConfig={chartConfig}
+              data={{
+                labels: getMonthlyData().map(d => d.month),
+                datasets: [{
+                  data: getMonthlyData().map(d => d.income),
+                }]
+              }}
+              width={screenWidth - 48}
+              height={200}
+              chartConfig={{
+                backgroundColor: '#FFFFFF',
+                backgroundGradientFrom: '#FFFFFF',
+                backgroundGradientTo: '#FFFFFF',
+                decimalPlaces: 0,
+                color: (opacity = 1) => `rgba(59, 130, 246, ${opacity})`,
+                labelColor: (opacity = 1) => `rgba(107, 114, 128, ${opacity})`,
+                style: {
+                  borderRadius: 16,
+                },
+                propsForDots: {
+                  r: '6',
+                  strokeWidth: '2',
+                  stroke: '#3B82F6',
+                },
+              }}
               bezier
               style={styles.chart}
             />
           </View>
-          
+
+          {/* Gráfico de distribución de conductores */}
           <View style={styles.chartCard}>
-            <Text style={styles.chartTitle}>Conductores Activos</Text>
+            <Text style={styles.chartTitle}>Distribución de Conductores</Text>
             <BarChart
-              data={driversData}
-              width={width - 48}
-              height={220}
-              chartConfig={chartConfig}
+              data={{
+                labels: getDriversData().map(d => d.label),
+                datasets: [{
+                  data: getDriversData().map(d => d.value),
+                }]
+              }}
+              width={screenWidth - 48}
+              height={200}
+              chartConfig={{
+                backgroundColor: '#FFFFFF',
+                backgroundGradientFrom: '#FFFFFF',
+                backgroundGradientTo: '#FFFFFF',
+                decimalPlaces: 0,
+                color: (opacity = 1) => `rgba(16, 185, 129, ${opacity})`,
+                labelColor: (opacity = 1) => `rgba(107, 114, 128, ${opacity})`,
+                style: {
+                  borderRadius: 16,
+                },
+              }}
               style={styles.chart}
-              showBarTops
-              showValuesOnTopOfBars
             />
           </View>
         </View>
 
-        {/* Actividades Recientes */}
-        <View style={styles.section}>
+        {/* Actividades recientes */}
+        <View style={styles.activitiesContainer}>
           <View style={styles.sectionHeader}>
             <Text style={styles.sectionTitle}>Actividades Recientes</Text>
             <TouchableOpacity>
@@ -347,62 +301,35 @@ export default function DashboardScreen() {
             </TouchableOpacity>
           </View>
           
-          <View style={styles.activitiesContainer}>
-            {recentActivities.map((activity, index) => (
-              <TouchableOpacity
-                key={activity.id}
-                style={styles.activityItem}
-                onPress={() => handleActivityPress(activity)}
-                activeOpacity={0.7}
-              >
-                <View style={styles.activityIcon}>
-                  <Icon 
-                    name={activity.type === 'payment' ? 'dollar-sign' : 'file-text'} 
-                    size={20} 
-                    color="#6b7280" 
-                  />
-                </View>
-                
-                <View style={styles.activityContent}>
-                  <Text style={styles.activityDescription} numberOfLines={2}>
-                    {activity.description}
-                  </Text>
-                  <Text style={styles.activityDate}>
-                    {new Date(activity.date).toLocaleDateString('es-ES', {
-                      day: '2-digit',
-                      month: 'short',
-                      hour: '2-digit',
-                      minute: '2-digit'
-                    })}
-                  </Text>
-                </View>
-                
-                <View style={styles.activityRight}>
-                  <View style={[
-                    styles.statusBadge,
-                    { backgroundColor: activity.status === 'completed' ? '#dcfce7' : '#fef3c7' }
-                  ]}>
-                    <Text style={[
-                      styles.statusText,
-                      { color: activity.status === 'completed' ? '#166534' : '#92400e' }
-                    ]}>
-                      {activity.status === 'completed' ? 'Completado' : 'Pendiente'}
-                    </Text>
-                  </View>
-                  
-                  {activity.amount > 0 && (
-                    <Text style={styles.activityAmount}>
-                      ${activity.amount.toLocaleString()}
-                    </Text>
-                  )}
-                </View>
-              </TouchableOpacity>
-            ))}
-          </View>
+          {dashboardData.recentActivities.map((activity, index) => (
+            <TouchableOpacity
+              key={activity.id}
+              style={styles.activityItem}
+              onPress={() => handleActivityPress(activity)}
+            >
+              <View style={[styles.activityIcon, { backgroundColor: getStatusColor(activity.type) + '20' }]}>
+                <Icon name={getStatusIcon(activity.type) as any} size={20} color={getStatusColor(activity.type)} />
+              </View>
+              <View style={styles.activityContent}>
+                <Text style={styles.activityDescription}>{activity.description}</Text>
+                <Text style={styles.activityTime}>
+                  {new Date(activity.timestamp).toLocaleDateString('es-ES', {
+                    day: '2-digit',
+                    month: '2-digit',
+                    hour: '2-digit',
+                    minute: '2-digit'
+                  })}
+                </Text>
+              </View>
+              {activity.amount && (
+                <Text style={styles.activityAmount}>${activity.amount.toLocaleString()}</Text>
+              )}
+            </TouchableOpacity>
+          ))}
         </View>
 
-        {/* Pagos Próximos */}
-        <View style={styles.section}>
+        {/* Pagos próximos */}
+        <View style={styles.paymentsContainer}>
           <View style={styles.sectionHeader}>
             <Text style={styles.sectionTitle}>Pagos Próximos</Text>
             <TouchableOpacity>
@@ -410,70 +337,45 @@ export default function DashboardScreen() {
             </TouchableOpacity>
           </View>
           
-          <View style={styles.paymentsContainer}>
-            {upcomingPayments.map((payment) => (
-              <TouchableOpacity
-                key={payment.id}
-                style={styles.paymentItem}
-                onPress={() => handlePaymentPress(payment)}
-                activeOpacity={0.7}
-              >
-                <View style={styles.paymentIcon}>
-                  <Icon name="users" size={20} color="#6b7280" />
-                </View>
-                
-                <View style={styles.paymentContent}>
-                  <Text style={styles.paymentName}>{payment.driverName}</Text>
-                  <Text style={styles.paymentDueDate}>
-                    Vence: {new Date(payment.dueDate).toLocaleDateString('es-ES')}
-                  </Text>
-                </View>
-                
-                <View style={styles.paymentRight}>
-                  <View style={styles.paymentStatusBadge}>
-                    <Text style={styles.paymentStatusText}>Próximo a vencer</Text>
-                  </View>
-                  
-                  <Text style={styles.paymentAmount}>
-                    ${payment.amount.toLocaleString()}
-                  </Text>
-                </View>
-              </TouchableOpacity>
-            ))}
-          </View>
+          {dashboardData.upcomingPayments.map((payment, index) => (
+            <TouchableOpacity
+              key={payment.id}
+              style={styles.paymentItem}
+              onPress={() => handlePaymentPress(payment)}
+            >
+              <View style={styles.paymentIcon}>
+                <Icon name="calendar" size={20} color="#3B82F6" />
+              </View>
+              <View style={styles.paymentContent}>
+                <Text style={styles.paymentDriver}>{payment.driverName}</Text>
+                <Text style={styles.paymentDate}>
+                  Vence: {new Date(payment.dueDate).toLocaleDateString('es-ES')}
+                </Text>
+              </View>
+              <Text style={styles.paymentAmount}>${payment.amount.toLocaleString()}</Text>
+            </TouchableOpacity>
+          ))}
         </View>
 
-        {/* Acciones Rápidas */}
-        <View style={styles.section}>
+        {/* Acciones rápidas */}
+        <View style={styles.quickActionsContainer}>
           <Text style={styles.sectionTitle}>Acciones Rápidas</Text>
-          
           <View style={styles.quickActionsGrid}>
             <TouchableOpacity style={styles.quickActionButton}>
-              <View style={[styles.quickActionIcon, { backgroundColor: '#dbeafe' }]}>
-                <Icon name="users" size={24} color="#2563eb" />
-              </View>
+              <Icon name="user-plus" size={24} color="#3B82F6" />
               <Text style={styles.quickActionText}>Nuevo Conductor</Text>
             </TouchableOpacity>
-            
             <TouchableOpacity style={styles.quickActionButton}>
-              <View style={[styles.quickActionIcon, { backgroundColor: '#dcfce7' }]}>
-                <Icon name="truck" size={24} color="#16a34a" />
-              </View>
+              <Icon name="car" size={24} color="#10B981" />
               <Text style={styles.quickActionText}>Nuevo Vehículo</Text>
             </TouchableOpacity>
-            
             <TouchableOpacity style={styles.quickActionButton}>
-              <View style={[styles.quickActionIcon, { backgroundColor: '#f3e8ff' }]}>
-                <Icon name="file-text" size={24} color="#9333ea" />
-              </View>
+              <Icon name="file-text" size={24} color="#8B5CF6" />
               <Text style={styles.quickActionText}>Nuevo Contrato</Text>
             </TouchableOpacity>
-            
             <TouchableOpacity style={styles.quickActionButton}>
-              <View style={[styles.quickActionIcon, { backgroundColor: '#fef3c7' }]}>
-                <Icon name="dollar-sign" size={24} color="#d97706" />
-              </View>
-              <Text style={styles.quickActionText}>Registrar Pago</Text>
+              <Icon name="credit-card" size={24} color="#F59E0B" />
+              <Text style={styles.quickActionText}>Nuevo Pago</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -485,7 +387,7 @@ export default function DashboardScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f8fafc',
+    backgroundColor: '#F8FAFC',
   },
   scrollView: {
     flex: 1,
@@ -496,249 +398,246 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   loadingText: {
-    fontSize: 16,
-    color: '#6b7280',
     marginTop: 16,
+    fontSize: 16,
+    color: '#6B7280',
   },
-  spinning: {
-    transform: [{ rotate: '360deg' }],
+  errorContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 24,
+  },
+  errorText: {
+    marginTop: 16,
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#374151',
+    textAlign: 'center',
+  },
+  errorSubtext: {
+    marginTop: 8,
+    fontSize: 14,
+    color: '#6B7280',
+    textAlign: 'center',
+  },
+  retryButton: {
+    marginTop: 16,
+    backgroundColor: '#3B82F6',
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    borderRadius: 8,
+  },
+  retryButtonText: {
+    color: '#FFFFFF',
+    fontWeight: '600',
   },
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    padding: 20,
-    paddingBottom: 16,
+    paddingHorizontal: 24,
+    paddingVertical: 16,
   },
-  title: {
-    fontSize: 28,
-    fontWeight: 'bold',
-    color: '#111827',
-    marginBottom: 4,
-  },
-  subtitle: {
-    fontSize: 16,
-    color: '#6b7280',
-  },
-  lastUpdate: {
+  welcomeText: {
     fontSize: 14,
-    color: '#9ca3af',
+    color: '#6B7280',
   },
-  refreshButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: '#ffffff',
+  userName: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: '#1F2937',
+  },
+  headerActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  notificationButton: {
+    position: 'relative',
+    padding: 8,
+  },
+  notificationBadge: {
+    position: 'absolute',
+    top: 4,
+    right: 4,
+    backgroundColor: '#EF4444',
+    borderRadius: 10,
+    minWidth: 20,
+    height: 20,
     justifyContent: 'center',
     alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 2,
+  },
+  notificationBadgeText: {
+    color: '#FFFFFF',
+    fontSize: 12,
+    fontWeight: 'bold',
+  },
+  metricsContainer: {
+    paddingHorizontal: 24,
+    marginBottom: 24,
+  },
+  sectionTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#1F2937',
+    marginBottom: 16,
   },
   metricsGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    paddingHorizontal: 20,
-    gap: 12,
-  },
-  secondaryMetrics: {
-    flexDirection: 'row',
-    paddingHorizontal: 20,
-    marginTop: 12,
-    gap: 12,
+    justifyContent: 'space-between',
   },
   chartsContainer: {
-    padding: 20,
-    paddingTop: 32,
+    paddingHorizontal: 24,
+    marginBottom: 24,
   },
-  section: {
-    padding: 20,
-    paddingTop: 32,
+  chartCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    padding: 16,
+    marginBottom: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  chartTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#374151',
+    marginBottom: 16,
+    textAlign: 'center',
+  },
+  chart: {
+    marginVertical: 8,
+    borderRadius: 16,
+  },
+  activitiesContainer: {
+    paddingHorizontal: 24,
+    marginBottom: 24,
   },
   sectionHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 20,
-  },
-  sectionTitle: {
-    fontSize: 20,
-    fontWeight: '600',
-    color: '#111827',
+    marginBottom: 16,
   },
   seeAllText: {
+    color: '#3B82F6',
     fontSize: 14,
-    color: '#3b82f6',
     fontWeight: '500',
-  },
-  chartCard: {
-    backgroundColor: '#ffffff',
-    borderRadius: 16,
-    padding: 20,
-    marginBottom: 20,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 4,
-  },
-  chartTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#111827',
-    marginBottom: 16,
-    textAlign: 'center',
-  },
-  chart: {
-    borderRadius: 16,
-  },
-  activitiesContainer: {
-    gap: 12,
   },
   activityItem: {
     flexDirection: 'row',
-    backgroundColor: '#ffffff',
-    borderRadius: 12,
+    alignItems: 'center',
+    backgroundColor: '#FFFFFF',
     padding: 16,
+    borderRadius: 12,
+    marginBottom: 12,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.05,
-    shadowRadius: 4,
+    shadowRadius: 2,
     elevation: 2,
   },
   activityIcon: {
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: '#f3f4f6',
     justifyContent: 'center',
     alignItems: 'center',
-    marginRight: 12,
+    marginRight: 16,
   },
   activityContent: {
     flex: 1,
-    justifyContent: 'center',
   },
   activityDescription: {
     fontSize: 14,
     fontWeight: '500',
-    color: '#111827',
+    color: '#374151',
     marginBottom: 4,
   },
-  activityDate: {
+  activityTime: {
     fontSize: 12,
-    color: '#6b7280',
-  },
-  activityRight: {
-    alignItems: 'flex-end',
-    justifyContent: 'center',
-  },
-  statusBadge: {
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 6,
-    marginBottom: 4,
-  },
-  statusText: {
-    fontSize: 10,
-    fontWeight: '600',
-    textTransform: 'uppercase',
+    color: '#6B7280',
   },
   activityAmount: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#111827',
+    color: '#10B981',
   },
   paymentsContainer: {
-    gap: 12,
+    paddingHorizontal: 24,
+    marginBottom: 24,
   },
   paymentItem: {
     flexDirection: 'row',
-    backgroundColor: '#ffffff',
-    borderRadius: 12,
+    alignItems: 'center',
+    backgroundColor: '#FFFFFF',
     padding: 16,
+    borderRadius: 12,
+    marginBottom: 12,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.05,
-    shadowRadius: 4,
+    shadowRadius: 2,
     elevation: 2,
   },
   paymentIcon: {
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: '#f3f4f6',
+    backgroundColor: '#EFF6FF',
     justifyContent: 'center',
     alignItems: 'center',
-    marginRight: 12,
+    marginRight: 16,
   },
   paymentContent: {
     flex: 1,
-    justifyContent: 'center',
   },
-  paymentName: {
+  paymentDriver: {
     fontSize: 14,
     fontWeight: '500',
-    color: '#111827',
+    color: '#374151',
     marginBottom: 4,
   },
-  paymentDueDate: {
+  paymentDate: {
     fontSize: 12,
-    color: '#6b7280',
-  },
-  paymentRight: {
-    alignItems: 'flex-end',
-    justifyContent: 'center',
-  },
-  paymentStatusBadge: {
-    backgroundColor: '#fef3c7',
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 6,
-    marginBottom: 4,
-  },
-  paymentStatusText: {
-    fontSize: 10,
-    fontWeight: '600',
-    color: '#92400e',
-    textTransform: 'uppercase',
+    color: '#6B7280',
   },
   paymentAmount: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#111827',
+    color: '#F59E0B',
+  },
+  quickActionsContainer: {
+    paddingHorizontal: 24,
+    marginBottom: 32,
   },
   quickActionsGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: 12,
+    justifyContent: 'space-between',
   },
   quickActionButton: {
-    width: (width - 52) / 2,
-    backgroundColor: '#ffffff',
-    borderRadius: 12,
+    width: '48%',
+    backgroundColor: '#FFFFFF',
     padding: 20,
+    borderRadius: 12,
     alignItems: 'center',
+    marginBottom: 16,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
     shadowRadius: 4,
-    elevation: 2,
-  },
-  quickActionIcon: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: 12,
+    elevation: 3,
   },
   quickActionText: {
-    fontSize: 14,
+    marginTop: 8,
+    fontSize: 12,
     fontWeight: '500',
-    color: '#111827',
+    color: '#374151',
     textAlign: 'center',
   },
 });
