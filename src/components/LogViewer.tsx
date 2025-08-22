@@ -17,7 +17,8 @@ const LogViewer: React.FC<LogViewerProps> = ({ isOpen, onClose }) => {
   const fetchLogs = async (type: 'app' | 'errors') => {
     setLoading(true);
     try {
-      const response = await fetch(`http://localhost:3001/api/logs/${type}`, {
+      const api = import.meta.env.VITE_API_URL || 'http://localhost:3001/api';
+      const response = await fetch(`${api}/logs/${type}`, {
         headers: getAuthHeaders()
       });
       
@@ -41,7 +42,8 @@ const LogViewer: React.FC<LogViewerProps> = ({ isOpen, onClose }) => {
 
   const clearLogs = async () => {
     try {
-      const response = await fetch('http://localhost:3001/api/logs/clear', {
+      const api = import.meta.env.VITE_API_URL || 'http://localhost:3001/api';
+      const response = await fetch(`${api}/logs/clear`, {
         method: 'DELETE',
         headers: getAuthHeaders()
       });

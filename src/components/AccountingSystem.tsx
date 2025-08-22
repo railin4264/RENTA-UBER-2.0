@@ -82,10 +82,11 @@ export default function AccountingSystem() {
     try {
       setIsLoading(true);
       // Cargar datos reales desde reportes backend
+      const api = import.meta.env.VITE_API_URL || 'http://localhost:3001/api';
       const [financialRes, paymentRes, expenseRes] = await Promise.all([
-        fetch('http://localhost:3001/api/reports/financial?startDate=' + encodeURIComponent(new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString()) + '&endDate=' + encodeURIComponent(new Date().toISOString()), { headers: getAuthHeaders() }),
-        fetch('http://localhost:3001/api/payments', { headers: getAuthHeaders() }),
-        fetch('http://localhost:3001/api/expenses', { headers: getAuthHeaders() })
+        fetch(`${api}/reports/financial?startDate=` + encodeURIComponent(new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString()) + '&endDate=' + encodeURIComponent(new Date().toISOString()), { headers: getAuthHeaders() }),
+        fetch(`${api}/payments`, { headers: getAuthHeaders() }),
+        fetch(`${api}/expenses`, { headers: getAuthHeaders() })
       ]);
 
       const financialJson = await financialRes.json().catch(() => ({}));

@@ -35,8 +35,10 @@ interface Contract {
   vehicleId: string;
   startDate: string;
   endDate: string;
-  rate: number;
-  rateType: 'daily' | 'weekly' | 'monthly';
+  monthlyPrice?: number;
+  basePrice?: number;
+  dailyPrice?: number;
+  type?: 'DAILY' | 'MONTHLY' | 'CUSTOM';
   deposit: number;
   status: { id: string; name: string };
   terms: string;
@@ -70,8 +72,10 @@ interface ContractFormData {
   vehicleId: string;
   startDate: string;
   endDate: string;
-  rate: number;
-  rateType: 'daily' | 'weekly' | 'monthly';
+  monthlyPrice?: number;
+  basePrice?: number;
+  dailyPrice?: number;
+  type?: 'DAILY' | 'MONTHLY' | 'CUSTOM';
   deposit: number;
   statusId: string;
   terms: string;
@@ -97,8 +101,10 @@ export default function ContractManagement() {
     vehicleId: z.string().min(1, 'El vehículo es requerido'),
     startDate: z.string().min(1, 'La fecha de inicio es requerida'),
     endDate: z.string().min(1, 'La fecha de fin es requerida'),
-    rate: z.number().positive('La tarifa debe ser mayor a 0'),
-    rateType: z.enum(['daily', 'weekly', 'monthly']),
+    type: z.enum(['DAILY','MONTHLY','CUSTOM']).default('MONTHLY').optional(),
+    monthlyPrice: z.number().positive('La tarifa mensual debe ser mayor a 0').optional(),
+    basePrice: z.number().positive('La base debe ser > 0').optional(),
+    dailyPrice: z.number().positive('La diaria debe ser > 0').optional(),
     deposit: z.number().min(0),
     statusId: z.string().optional(),
     terms: z.string().optional(),
@@ -109,7 +115,7 @@ export default function ContractManagement() {
 
   const { register, handleSubmit, reset, formState: { errors, isSubmitting } } = useForm<FormValues>({
     resolver: zodResolver(schema),
-    defaultValues: { driverId: '', vehicleId: '', startDate: '', endDate: '', rate: 0, rateType: 'daily', deposit: 0 }
+    defaultValues: { driverId: '', vehicleId: '', startDate: '', endDate: '', type: 'MONTHLY', monthlyPrice: 0, deposit: 0 }
   });
 
   // Data fetching via React Query
@@ -119,25 +125,29 @@ export default function ContractManagement() {
     params.set('page', String(page));
     params.set('limit', String(limit));
     if (q) params.set('q', q);
-    const res = await fetch(`http://localhost:3001/api/contracts?${params.toString()}`, { headers: getAuthHeaders() });
+    const api = import.meta.env.VITE_API_URL || 'http://localhost:3001/api';
+    const res = await fetch(`${api}/contracts?${params.toString()}`, { headers: getAuthHeaders() });
     return res.json();
   };
 
   const contractsQuery = useQuery(['contracts', { page, limit, q: searchTerm }], fetchContracts, { keepPreviousData: true });
 
   const driversQuery = useQuery(['drivers'], async () => {
-    const res = await fetch('http://localhost:3001/api/drivers', { headers: getAuthHeaders() });
+    const api = import.meta.env.VITE_API_URL || 'http://localhost:3001/api';
+    const res = await fetch(`${api}/drivers`, { headers: getAuthHeaders() });
     return res.json();
   });
 
   const vehiclesQuery = useQuery(['vehicles'], async () => {
-    const res = await fetch('http://localhost:3001/api/vehicles', { headers: getAuthHeaders() });
+    const api = import.meta.env.VITE_API_URL || 'http://localhost:3001/api';
+    const res = await fetch(`${api}/vehicles`, { headers: getAuthHeaders() });
     return res.json();
   });
 
   // Mutations
   const createOrUpdateMutation = useMutation(async (data: any) => {
-    const url = editingContract ? `http://localhost:3001/api/contracts/${editingContract.id}` : 'http://localhost:3001/api/contracts';
+    const api = import.meta.env.VITE_API_URL || 'http://localhost:3001/api';
+    const url = editingContract ? `${api}/contracts/${editingContract.id}` : `${api}/contracts`;
     const method = editingContract ? 'PUT' : 'POST';
     const res = await fetch(url, { method, headers: { 'Content-Type': 'application/json', ...getAuthHeaders() }, body: JSON.stringify(data) });
     if (!res.ok) throw new Error('Error saving contract');
@@ -147,7 +157,8 @@ export default function ContractManagement() {
   });
 
   const deleteMutation = useMutation(async (id: string) => {
-    const res = await fetch(`http://localhost:3001/api/contracts/${id}`, { method: 'DELETE', headers: getAuthHeaders() });
+    const api = import.meta.env.VITE_API_URL || 'http://localhost:3001/api';
+    const res = await fetch(`${api}/contracts/${id}`, { method: 'DELETE', headers: getAuthHeaders() });
     if (!res.ok) throw new Error('Error deleting');
     return res.json();
   }, { onSuccess: () => queryClient.invalidateQueries(['contracts']) });
@@ -182,6 +193,7 @@ export default function ContractManagement() {
   const loadData = async () => {
     try {
       setIsLoading(true);
+      const api = import.meta.env.VITE_API_URL || 'http://localhost:3001/api';
       
       // Cargar contratos
       const params = new URLSearchParams();
@@ -189,7 +201,7 @@ export default function ContractManagement() {
       params.set('limit', String(limit));
       if (searchTerm) params.set('q', searchTerm);
       // statusFilter is name-based in UI; server expects statusId. We keep server-side pagination by q/page/limit
-      const url = `http://localhost:3001/api/contracts?${params.toString()}`;
+      const url = `${api}/contracts?${params.toString()}`;
       const contractsResponse = await fetch(url, { headers: getAuthHeaders() });
       if (contractsResponse.ok) {
         const result = await contractsResponse.json();
@@ -202,7 +214,7 @@ export default function ContractManagement() {
       } else { setContracts([]); toast.error('No se pudieron cargar los contratos'); }
 
       // Cargar conductores
-      const driversResponse = await fetch('http://localhost:3001/api/drivers', { headers: getAuthHeaders() });
+      const driversResponse = await fetch(`${api}/drivers`, { headers: getAuthHeaders() });
       if (driversResponse.ok) {
         const result = await driversResponse.json();
         const driversData = result.success && Array.isArray(result.data) ? result.data : [];
@@ -210,7 +222,7 @@ export default function ContractManagement() {
       } else { setDrivers([]); }
 
       // Cargar vehículos
-      const vehiclesResponse = await fetch('http://localhost:3001/api/vehicles', { headers: getAuthHeaders() });
+      const vehiclesResponse = await fetch(`${api}/vehicles`, { headers: getAuthHeaders() });
       if (vehiclesResponse.ok) {
         const result = await vehiclesResponse.json();
         const vehiclesData = result.success && Array.isArray(result.data) ? result.data : [];
@@ -218,10 +230,7 @@ export default function ContractManagement() {
       } else { setVehicles([]); }
     } catch (error) {
       console.error('Error cargando datos:', error);
-      // En caso de error, establecer arrays vacíos
-      setContracts([]);
-      setDrivers([]);
-      setVehicles([]);
+      toast.error('Error de conexión');
     } finally {
       setIsLoading(false);
     }

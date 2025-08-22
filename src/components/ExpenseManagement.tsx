@@ -103,7 +103,8 @@ export default function ExpenseManagement() {
       setIsLoading(true);
       
       // Cargar gastos
-      const expensesResponse = await fetch('http://localhost:3001/api/expenses', { headers: getAuthHeaders() });
+      const api = import.meta.env.VITE_API_URL || 'http://localhost:3001/api';
+      const expensesResponse = await fetch(`${api}/expenses`, { headers: getAuthHeaders() });
       if (expensesResponse.ok) {
         const result = await expensesResponse.json();
         // El backend devuelve { success: true, data: [...], count: number }
@@ -112,7 +113,7 @@ export default function ExpenseManagement() {
       } else { setExpenses([]); toast.error('No se pudieron cargar los gastos'); }
 
       // Cargar vehículos
-      const vehiclesResponse = await fetch('http://localhost:3001/api/vehicles', { headers: getAuthHeaders() });
+      const vehiclesResponse = await fetch(`${api}/vehicles`, { headers: getAuthHeaders() });
       if (vehiclesResponse.ok) {
         const result = await vehiclesResponse.json();
         const vehiclesData = result.success && Array.isArray(result.data) ? result.data : [];
@@ -186,9 +187,10 @@ export default function ExpenseManagement() {
     setIsSubmitting(true);
 
     try {
+      const api = import.meta.env.VITE_API_URL || 'http://localhost:3001/api';
       const url = editingExpense 
-        ? `http://localhost:3001/api/expenses/${editingExpense.id}`
-        : 'http://localhost:3001/api/expenses';
+        ? `${api}/expenses/${editingExpense.id}`
+        : `${api}/expenses`;
       
       const method = editingExpense ? 'PUT' : 'POST';
 
@@ -241,7 +243,8 @@ export default function ExpenseManagement() {
     }
 
     try {
-      const response = await fetch(`http://localhost:3001/api/expenses/${id}`, {
+      const api = import.meta.env.VITE_API_URL || 'http://localhost:3001/api';
+      const response = await fetch(`${api}/expenses/${id}`, {
         method: 'DELETE',
         headers: getAuthHeaders()
       });

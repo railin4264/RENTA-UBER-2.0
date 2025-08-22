@@ -119,7 +119,8 @@ export default function VehicleManagement() {
   const loadVehicles = async () => {
     try {
       setIsLoading(true);
-      const response = await fetch('http://localhost:3001/api/vehicles', {
+      const api = import.meta.env.VITE_API_URL || 'http://localhost:3001/api';
+      const response = await fetch(`${api}/vehicles`, {
         headers: getAuthHeaders()
       });
       if (response.ok) {
@@ -237,9 +238,10 @@ export default function VehicleManagement() {
     setIsSubmitting(true);
 
     try {
+      const api = import.meta.env.VITE_API_URL || 'http://localhost:3001/api';
       const url = editingVehicle 
-        ? `http://localhost:3001/api/vehicles/${editingVehicle.id}`
-        : 'http://localhost:3001/api/vehicles';
+        ? `${api}/vehicles/${editingVehicle.id}`
+        : `${api}/vehicles`;
       
       const method = editingVehicle ? 'PUT' : 'POST';
 
@@ -262,7 +264,8 @@ export default function VehicleManagement() {
           const fd = new FormData();
           fd.append('photo', formData.generalPhoto);
           try {
-            const uploadRes = await fetch(`http://localhost:3001/api/vehicles/${vehicleId}/photo`, {
+            const api = import.meta.env.VITE_API_URL || 'http://localhost:3001/api';
+            const uploadRes = await fetch(`${api}/vehicles/${vehicleId}/photo`, {
               method: 'POST',
               headers: {
                 ...(getAuthHeaders().Authorization ? { Authorization: getAuthHeaders().Authorization } : {})
@@ -326,7 +329,8 @@ export default function VehicleManagement() {
     }
 
     try {
-      const response = await fetch(`http://localhost:3001/api/vehicles/${id}`, {
+      const api = import.meta.env.VITE_API_URL || 'http://localhost:3001/api';
+      const response = await fetch(`${api}/vehicles/${id}`, {
         method: 'DELETE',
         headers: getAuthHeaders()
       });
