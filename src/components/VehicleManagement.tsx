@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { toast } from 'react-hot-toast';
 import { useAuth } from '../context/AuthContext';
+import { apiService } from '../services/api';
 import {
   Car,
   Plus,
@@ -117,27 +118,15 @@ export default function VehicleManagement() {
   }, []);
 
   const loadVehicles = async () => {
-    try {
-      setIsLoading(true);
-      const response = await fetch('http://localhost:3001/api/vehicles', {
-        headers: getAuthHeaders()
-      });
-      if (response.ok) {
-        const result = await response.json();
-        // El backend devuelve { success: true, data: [...], count: number }
-        const vehiclesData = result.success && Array.isArray(result.data) ? result.data : [];
-        setVehicles(vehiclesData);
-      } else {
-        setVehicles([]);
-        toast.error('No se pudieron cargar los vehículos');
-      }
-    } catch (error) {
-      console.error('Error cargando vehículos:', error);
+    setIsLoading(true);
+    const res = await apiService.getVehicles();
+    if (res.success && Array.isArray(res.data)) {
+      setVehicles(res.data as Vehicle[]);
+    } else {
       setVehicles([]);
-      toast.error('Error de conexión al cargar vehículos');
-    } finally {
-      setIsLoading(false);
+      toast.error(res.error || 'No se pudieron cargar los vehículos');
     }
+    setIsLoading(false);
   };
 
   const validateForm = (): boolean => {
@@ -237,25 +226,14 @@ export default function VehicleManagement() {
     setIsSubmitting(true);
 
     try {
-      const url = editingVehicle 
-        ? `http://localhost:3001/api/vehicles/${editingVehicle.id}`
-        : 'http://localhost:3001/api/vehicles';
-      
-      const method = editingVehicle ? 'PUT' : 'POST';
+      const apiCall = editingVehicle
+        ? () => apiService.updateVehicle(editingVehicle!.id, formData)
+        : () => apiService.createVehicle(formData);
 
-      const response = await fetch(url, {
-        method,
-        headers: {
-          'Content-Type': 'application/json',
-          ...getAuthHeaders()
-        },
-        body: JSON.stringify(formData),
-      });
+      const result = await apiCall();
 
-      const result = await response.json();
-
-      if (response.ok && result?.data?.id) {
-        const vehicleId = result.data.id;
+      if (result.success && result.data) {
+        const vehicleId = (result.data as any).id;
 
         // Upload general photo
         if (formData.generalPhoto) {
@@ -326,17 +304,12 @@ export default function VehicleManagement() {
     }
 
     try {
-      const response = await fetch(`http://localhost:3001/api/vehicles/${id}`, {
-        method: 'DELETE',
-        headers: getAuthHeaders()
-      });
-
-      if (response.ok) {
+      const res = await apiService.deleteVehicle(id);
+      if (res.success) {
         loadVehicles();
         toast.success('Vehículo eliminado');
       } else {
-        const errorData = await response.json();
-        toast.error(errorData.error || 'Error al eliminar el vehículo');
+        toast.error(res.error || 'Error al eliminar el vehículo');
       }
     } catch (error) {
       console.error('Error eliminando vehículo:', error);

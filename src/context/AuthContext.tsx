@@ -41,7 +41,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
     try {
       // Verificar si el token es válido haciendo una petición al backend
-      const response = await fetch('http://localhost:3001/api/auth/verify', {
+      const response = await fetch('http://localhost:3001/api/auth/validate', {
         method: 'GET',
         headers: {
           'Authorization': `Bearer ${storedToken}`,
@@ -100,6 +100,38 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
     initializeAuth();
   }, []);
+
+  // Refresco automático del token cada 14 minutos
+  useEffect(() => {
+    if (!token) return;
+
+    const refreshInterval = setInterval(async () => {
+      try {
+        const res = await fetch('http://localhost:3001/api/auth/refresh', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ refreshToken: token })
+        });
+
+        if (res.ok) {
+          const data = await res.json();
+          if (data?.data?.accessToken) {
+            login(data.data.accessToken, data.data.user);
+          }
+        } else {
+          console.warn('Fallo al refrescar token, cerrando sesión');
+          logout();
+        }
+      } catch (err) {
+        console.error('Error refrescando token', err);
+        logout();
+      }
+    }, 14 * 60 * 1000); // 14 minutos
+
+    return () => clearInterval(refreshInterval);
+  }, [token]);
 
   const value: AuthContextType = {
     isAuthenticated,

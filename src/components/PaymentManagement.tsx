@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { toast } from 'react-hot-toast';
 import { useAuth } from '../context/AuthContext';
+import { apiService } from '../services/api';
 import {
   DollarSign,
   Plus,
@@ -111,13 +112,13 @@ export default function PaymentManagement() {
       setIsLoading(true);
       
       // Cargar pagos
-      const paymentsResponse = await fetch('http://localhost:3001/api/payments', { headers: getAuthHeaders() });
-      if (paymentsResponse.ok) {
-        const result = await paymentsResponse.json();
-        // El backend devuelve { success: true, data: [...], count: number }
-        const paymentsData = result.success && Array.isArray(result.data) ? result.data : [];
-        setPayments(paymentsData);
-      } else { setPayments([]); toast.error('No se pudieron cargar los pagos'); }
+      const paymentsRes = await apiService.getPayments();
+      if (paymentsRes.success && Array.isArray(paymentsRes.data)) {
+        setPayments(paymentsRes.data);
+      } else {
+        setPayments([]);
+        toast.error(paymentsRes.error || 'No se pudieron cargar los pagos');
+      }
 
       // Cargar conductores
       const driversResponse = await fetch('http://localhost:3001/api/drivers', { headers: getAuthHeaders() });
@@ -203,30 +204,18 @@ export default function PaymentManagement() {
     setIsSubmitting(true);
 
     try {
-      const url = editingPayment 
-        ? `http://localhost:3001/api/payments/${editingPayment.id}`
-        : 'http://localhost:3001/api/payments';
-      
-      const method = editingPayment ? 'PUT' : 'POST';
+      const result = editingPayment
+        ? await apiService.updatePayment(editingPayment.id, formData)
+        : await apiService.createPayment(formData);
 
-      const response = await fetch(url, {
-        method,
-        headers: {
-          'Content-Type': 'application/json',
-          ...getAuthHeaders()
-        },
-        body: JSON.stringify(formData),
-      });
-
-      if (response.ok) {
+      if (result.success) {
         setShowForm(false);
         setEditingPayment(null);
         resetForm();
         loadData();
         toast.success(editingPayment ? 'Pago actualizado' : 'Pago creado');
       } else {
-        const errorData = await response.json();
-        toast.error(errorData.error || 'Error al guardar el pago');
+        toast.error(result.error || 'Error al guardar el pago');
       }
     } catch (error) {
       console.error('Error guardando pago:', error);
@@ -260,17 +249,12 @@ export default function PaymentManagement() {
     }
 
     try {
-      const response = await fetch(`http://localhost:3001/api/payments/${id}`, {
-        method: 'DELETE',
-        headers: getAuthHeaders()
-      });
-
-      if (response.ok) {
+      const res = await apiService.deletePayment(id);
+      if (res.success) {
         loadData();
         toast.success('Pago eliminado');
       } else {
-        const errorData = await response.json();
-        toast.error(errorData.error || 'Error al eliminar el pago');
+        toast.error(res.error || 'Error al eliminar el pago');
       }
     } catch (error) {
       console.error('Error eliminando pago:', error);
