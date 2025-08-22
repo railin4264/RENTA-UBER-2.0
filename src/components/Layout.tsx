@@ -22,6 +22,9 @@ import { useApp } from '../context/AppContext';
 import { useAuth } from '../context/AuthContext';
 import { toast } from 'react-hot-toast';
 import LogViewer from './LogViewer';
+import NotificationCenter from './NotificationCenter';
+import { useNotifications } from '../hooks/useNotifications';
+import { Badge } from '../design-system/components';
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -30,11 +33,14 @@ interface LayoutProps {
 export default function Layout({ children }: LayoutProps) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [logViewerOpen, setLogViewerOpen] = useState(false);
+  const [notificationCenterOpen, setNotificationCenterOpen] = useState(false);
   const [health, setHealth] = useState<'ok'|'error'|'idle'>('idle');
   const { state } = useApp();
   const { user, logout } = useAuth();
   const location = useLocation();
   const navigate = useNavigate();
+  
+  const { unreadCount, hasUnread } = useNotifications();
   
   useEffect(() => {
     let mounted = true;
@@ -72,6 +78,9 @@ export default function Layout({ children }: LayoutProps) {
     { id: 'settings', label: 'Configuración', icon: Settings, path: '/settings' }
   ];
 
+  const currentPath = location.pathname;
+  const currentMenuItem = menuItems.find(item => item.path === currentPath);
+
   return (
     <div className="flex h-screen bg-gray-50 overflow-hidden">
       {/* Mobile sidebar overlay */}
@@ -98,138 +107,152 @@ export default function Layout({ children }: LayoutProps) {
           </div>
           <button
             onClick={() => setSidebarOpen(false)}
-            className="lg:hidden p-1 rounded-md text-gray-400 hover:text-gray-600"
+            className="lg:hidden p-2 text-gray-400 hover:text-gray-600"
           >
-            <X className="w-5 h-5" />
+            <X className="h-5 w-5" />
           </button>
         </div>
 
-        <nav className="mt-6 px-3 overflow-y-auto" style={{ height: 'calc(100vh - 4rem)' }}>
-          <div className="space-y-1">
-            {menuItems.map((item) => {
-              const Icon = item.icon;
-              const isActive = location.pathname === item.path;
-              return (
-                <Link
-                  key={item.id}
-                  to={item.path}
-                  className={`flex items-center px-3 py-2 text-sm font-medium rounded-lg transition-colors ${
-                isActive 
-                      ? 'bg-brand-50 text-brand-700 border border-brand-200' 
-                      : 'text-gray-700 hover:bg-gray-100 hover:text-gray-900'
-                  }`}
-                  onClick={() => setSidebarOpen(false)}
-                >
-                  <Icon className="w-5 h-5 mr-3" />
-                  {item.label}
-                </Link>
-              );
-            })}
-          </div>
-
-          {/* User section */}
-          <div className="mt-8 pt-6 border-t border-gray-200">
-            <div className="flex items-center px-3 py-2">
-              <div className="w-8 h-8 bg-gray-300 rounded-full flex items-center justify-center">
-                <User className="w-4 h-4 text-gray-600" />
-              </div>
-              <div className="ml-3">
-                <p className="text-sm font-medium text-gray-700">
-                  {user?.name || user?.email || 'Usuario'}
-                </p>
-                <p className="text-xs text-gray-500">{user?.email || 'usuario@ejemplo.com'}</p>
-              </div>
-            </div>
-            <button
-              onClick={handleLogout}
-              className="flex items-center w-full px-3 py-2 mt-2 text-sm font-medium text-gray-700 rounded-lg hover:bg-gray-100 hover:text-gray-900 transition-colors"
-            >
-              <LogOut className="w-5 h-5 mr-3" />
-              Cerrar Sesión
-            </button>
-          </div>
+        {/* Navigation Menu */}
+        <nav className="flex-1 px-4 py-6 space-y-2">
+          {menuItems.map((item) => {
+            const Icon = item.icon;
+            const isActive = currentPath === item.path;
+            
+            return (
+              <Link
+                key={item.id}
+                to={item.path}
+                className={`flex items-center space-x-3 px-3 py-2 rounded-lg transition-colors ${
+                  isActive
+                    ? 'bg-brand-50 text-brand-700 border-r-2 border-brand-600'
+                    : 'text-gray-700 hover:bg-gray-50 hover:text-gray-900'
+                }`}
+                onClick={() => setSidebarOpen(false)}
+              >
+                <Icon className={`h-5 w-5 ${isActive ? 'text-brand-600' : 'text-gray-400'}`} />
+                <span className="font-medium">{item.label}</span>
+              </Link>
+            );
+          })}
         </nav>
+
+        {/* Sidebar Footer */}
+        <div className="border-t border-gray-100 p-4">
+          <div className="flex items-center space-x-3 mb-4">
+            <div className="w-8 h-8 bg-gray-200 rounded-full flex items-center justify-center">
+              <User className="h-4 w-4 text-gray-600" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-medium text-gray-900 truncate">
+                {user?.name || 'Usuario'}
+              </p>
+              <p className="text-xs text-gray-500 truncate">
+                {user?.email || 'usuario@ejemplo.com'}
+              </p>
+            </div>
+          </div>
+          
+          <button
+            onClick={handleLogout}
+            className="w-full flex items-center justify-center space-x-2 px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 hover:text-gray-900 rounded-lg transition-colors"
+          >
+            <LogOut className="h-4 w-4" />
+            <span>Cerrar Sesión</span>
+          </button>
+        </div>
       </div>
 
-      {/* Main content */}
-      <div className="flex-1 lg:pl-64">
-        {/* Top bar */}
-        <div className="sticky top-0 z-30 bg-white shadow-card border-b border-gray-100">
-          <div className="flex items-center justify-between h-16 px-4 sm:px-6 lg:px-8">
-            <div className="flex items-center">
+      {/* Main Content */}
+      <div className="flex-1 flex flex-col overflow-hidden">
+        {/* Top Header */}
+        <header className="bg-white shadow-sm border-b border-gray-200">
+          <div className="flex items-center justify-between h-16 px-6">
+            {/* Left side - Mobile menu button and current page */}
+            <div className="flex items-center space-x-4">
               <button
                 onClick={() => setSidebarOpen(true)}
-                className="lg:hidden p-2 rounded-md text-gray-400 hover:text-gray-600 hover:bg-gray-100"
+                className="lg:hidden p-2 text-gray-400 hover:text-gray-600 rounded-lg"
               >
-                <Menu className="w-5 h-5" />
+                <Menu className="h-6 w-6" />
               </button>
-              <div className="ml-4 lg:ml-0">
-                <h2 className="text-lg font-semibold text-gray-900">
-                  {menuItems.find(item => item.path === location.pathname)?.label || 'Dashboard'}
+              
+              <div className="hidden sm:block">
+                <h2 className="text-xl font-semibold text-gray-900">
+                  {currentMenuItem?.label || 'Dashboard'}
                 </h2>
+                <p className="text-sm text-gray-500">
+                  {currentMenuItem?.description || 'Gestión del sistema'}
+                </p>
               </div>
             </div>
 
+            {/* Right side - Actions and user info */}
             <div className="flex items-center space-x-4">
-              {/* Backend health badge */}
-              <Link to="/status" className={`px-2 py-1 text-xs rounded-md border ${health==='ok' ? 'bg-green-50 text-green-700 border-green-200' : health==='error' ? 'bg-red-50 text-red-700 border-red-200' : 'bg-gray-50 text-gray-700 border-gray-200'}`}>
-                Backend: {health === 'ok' ? 'OK' : health === 'error' ? 'Error' : '...'}
-              </Link>
-
-              {/* Search */}
-              <div className="hidden sm:block">
-                <div className="relative">
-                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
-                  <input
-                    type="text"
-                    placeholder="Buscar..."
-                    className="w-64 pl-10 pr-4 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  />
-                </div>
+              {/* Health Status */}
+              <div className="flex items-center space-x-2">
+                <div className={`w-2 h-2 rounded-full ${
+                  health === 'ok' ? 'bg-green-500' : 
+                  health === 'error' ? 'bg-red-500' : 'bg-gray-400'
+                }`} />
+                <span className="text-xs text-gray-500 hidden sm:block">
+                  {health === 'ok' ? 'Sistema OK' : 
+                   health === 'error' ? 'Error de conexión' : 'Verificando...'}
+                </span>
               </div>
 
-              {/* Notifications */}
-              <button className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg">
-                <Bell className="w-5 h-5" />
-              </button>
-
-              {/* Logs Viewer */}
-               <button 
+              {/* Logs Button */}
+              <button
                 onClick={() => setLogViewerOpen(true)}
-                 className="btn-ghost"
-                title="Ver logs del backend"
+                className="p-2 text-gray-400 hover:text-gray-600 rounded-lg transition-colors"
+                title="Ver logs del sistema"
               >
-                <LogsIcon className="w-5 h-5" />
+                <LogsIcon className="h-5 w-5" />
               </button>
 
-              {/* User menu */}
-              <div className="flex items-center space-x-3">
-                <div className="hidden sm:block">
-                  <p className="text-sm font-medium text-gray-700">
-                    {user?.name || user?.email || 'Usuario'}
-                  </p>
-                  <p className="text-xs text-gray-500">{user?.email || 'usuario@ejemplo.com'}</p>
-                </div>
-                <div className="w-8 h-8 bg-brand-600 rounded-full flex items-center justify-center">
-                  <User className="w-4 h-4 text-white" />
-                </div>
-              </div>
+              {/* Notifications Button */}
+              <button
+                onClick={() => setNotificationCenterOpen(true)}
+                className="relative p-2 text-gray-400 hover:text-gray-600 rounded-lg transition-colors"
+                title="Notificaciones"
+              >
+                <Bell className="h-5 w-5" />
+                {hasUnread && (
+                  <Badge
+                    variant="error"
+                    size="sm"
+                    className="absolute -top-1 -right-1 min-w-[18px] h-[18px] flex items-center justify-center text-xs"
+                  >
+                    {unreadCount > 99 ? '99+' : unreadCount}
+                  </Badge>
+                )}
+              </button>
+
+              {/* Search Button */}
+              <button className="p-2 text-gray-400 hover:text-gray-600 rounded-lg transition-colors">
+                <Search className="h-5 w-5" />
+              </button>
             </div>
           </div>
-        </div>
+        </header>
 
-        {/* Page content */}
-        <main className="min-h-screen bg-gray-50 p-4 sm:p-6 lg:p-8">
-          <div className="max-w-7xl mx-auto">
+        {/* Page Content */}
+        <main className="flex-1 overflow-y-auto bg-gray-50">
+          <div className="p-6">
             {children}
           </div>
         </main>
       </div>
 
       {/* Log Viewer Modal */}
-      <LogViewer 
-        isOpen={logViewerOpen} 
-        onClose={() => setLogViewerOpen(false)} 
+      {logViewerOpen && (
+        <LogViewer onClose={() => setLogViewerOpen(false)} />
+      )}
+
+      {/* Notification Center */}
+      <NotificationCenter
+        isOpen={notificationCenterOpen}
+        onClose={() => setNotificationCenterOpen(false)}
       />
     </div>
   );
