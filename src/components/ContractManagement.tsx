@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { toast } from 'react-hot-toast';
 import { useAuth } from '../context/AuthContext';
+import { apiService } from '../services/api';
 import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
@@ -119,37 +120,37 @@ export default function ContractManagement() {
     params.set('page', String(page));
     params.set('limit', String(limit));
     if (q) params.set('q', q);
-    const res = await fetch(`http://localhost:3001/api/contracts?${params.toString()}`, { headers: getAuthHeaders() });
-    return res.json();
+    const res = await apiService.getContracts(params.toString());
+    return res;
   };
 
   const contractsQuery = useQuery(['contracts', { page, limit, q: searchTerm }], fetchContracts, { keepPreviousData: true });
 
   const driversQuery = useQuery(['drivers'], async () => {
-    const res = await fetch('http://localhost:3001/api/drivers', { headers: getAuthHeaders() });
-    return res.json();
+    const res = await apiService.getDrivers();
+    return res;
   });
 
   const vehiclesQuery = useQuery(['vehicles'], async () => {
-    const res = await fetch('http://localhost:3001/api/vehicles', { headers: getAuthHeaders() });
-    return res.json();
+    const res = await apiService.getVehicles();
+    return res;
   });
 
   // Mutations
   const createOrUpdateMutation = useMutation(async (data: any) => {
     const url = editingContract ? `http://localhost:3001/api/contracts/${editingContract.id}` : 'http://localhost:3001/api/contracts';
     const method = editingContract ? 'PUT' : 'POST';
-    const res = await fetch(url, { method, headers: { 'Content-Type': 'application/json', ...getAuthHeaders() }, body: JSON.stringify(data) });
-    if (!res.ok) throw new Error('Error saving contract');
-    return res.json();
+    const res = await apiService.createOrUpdateContract(url, method, data);
+    if (!res.success) throw new Error('Error saving contract');
+    return res;
   }, {
     onSuccess: () => queryClient.invalidateQueries(['contracts'])
   });
 
   const deleteMutation = useMutation(async (id: string) => {
-    const res = await fetch(`http://localhost:3001/api/contracts/${id}`, { method: 'DELETE', headers: getAuthHeaders() });
-    if (!res.ok) throw new Error('Error deleting');
-    return res.json();
+    const res = await apiService.deleteContract(id);
+    if (!res.success) throw new Error('Error deleting');
+    return res;
   }, { onSuccess: () => queryClient.invalidateQueries(['contracts']) });
 
   const onSubmit = async (values: FormValues) => {
@@ -190,31 +191,24 @@ export default function ContractManagement() {
       if (searchTerm) params.set('q', searchTerm);
       // statusFilter is name-based in UI; server expects statusId. We keep server-side pagination by q/page/limit
       const url = `http://localhost:3001/api/contracts?${params.toString()}`;
-      const contractsResponse = await fetch(url, { headers: getAuthHeaders() });
-      if (contractsResponse.ok) {
-        const result = await contractsResponse.json();
-        // El backend devuelve { success: true, data: [...], count: number }
-        const contractsData = result.success && Array.isArray(result.data) ? result.data : [];
-        setContracts(contractsData);
-        if (result.meta && typeof result.meta.total === 'number') {
-          setTotal(result.meta.total);
+      const contractsResponse = await apiService.getContracts(params.toString());
+      if (contractsResponse.success && Array.isArray(contractsResponse.data)) {
+        setContracts(contractsResponse.data as Contract[]);
+        if (contractsResponse.meta && typeof contractsResponse.meta.total === 'number') {
+          setTotal(contractsResponse.meta.total);
         }
       } else { setContracts([]); toast.error('No se pudieron cargar los contratos'); }
 
       // Cargar conductores
-      const driversResponse = await fetch('http://localhost:3001/api/drivers', { headers: getAuthHeaders() });
-      if (driversResponse.ok) {
-        const result = await driversResponse.json();
-        const driversData = result.success && Array.isArray(result.data) ? result.data : [];
-        setDrivers(driversData);
+      const driversResponse = await apiService.getDrivers();
+      if (driversResponse.success && Array.isArray(driversResponse.data)) {
+        setDrivers(driversResponse.data);
       } else { setDrivers([]); }
 
       // Cargar vehículos
-      const vehiclesResponse = await fetch('http://localhost:3001/api/vehicles', { headers: getAuthHeaders() });
-      if (vehiclesResponse.ok) {
-        const result = await vehiclesResponse.json();
-        const vehiclesData = result.success && Array.isArray(result.data) ? result.data : [];
-        setVehicles(vehiclesData);
+      const vehiclesResponse = await apiService.getVehicles();
+      if (vehiclesResponse.success && Array.isArray(vehiclesResponse.data)) {
+        setVehicles(vehiclesResponse.data);
       } else { setVehicles([]); }
     } catch (error) {
       console.error('Error cargando datos:', error);
@@ -337,29 +331,18 @@ export default function ContractManagement() {
     setIsSubmitting(true);
 
     try {
-      const url = editingContract 
-        ? `http://localhost:3001/api/contracts/${editingContract.id}`
-        : 'http://localhost:3001/api/contracts';
-      
-      const method = editingContract ? 'PUT' : 'POST';
+      const result = editingContract ?
+        await apiService.updateContract(editingContract.id, formData) :
+        await apiService.createContract(formData);
 
-      const response = await fetch(url, {
-        method,
-        headers: {
-          'Content-Type': 'application/json',
-          ...getAuthHeaders()
-        },
-        body: JSON.stringify(formData),
-      });
-
-      if (response.ok) {
+      if (result.success && result.data) {
         setShowForm(false);
         setEditingContract(null);
         resetForm();
         loadData();
       } else {
-        const errorData = await response.json();
-        toast.error(errorData.error || 'Error al guardar el contrato');
+        const errorData = result.error || 'Error al guardar el contrato';
+        toast.error(errorData || 'Error al guardar el contrato');
       }
     } catch (error) {
       console.error('Error guardando contrato:', error);
@@ -394,19 +377,13 @@ export default function ContractManagement() {
     const previous = contracts;
     setContracts(prev => prev.filter(c => c.id !== id));
     try {
-      const response = await fetch(`http://localhost:3001/api/contracts/${id}`, {
-        method: 'DELETE',
-        headers: getAuthHeaders()
-      });
-
-      if (response.ok) {
+      const res = await apiService.deleteContract(id);
+      if (res.success) {
+        loadData();
         toast.success('Contrato eliminado');
-        // refresh current page in background
-        triggerLoadData(0);
       } else {
-        const errorData = await response.json();
         setContracts(previous);
-        toast.error(errorData.error || 'Error al eliminar el contrato');
+        toast.error(res.error || 'Error al eliminar el contrato');
       }
     } catch (error) {
       console.error('Error eliminando contrato:', error);
