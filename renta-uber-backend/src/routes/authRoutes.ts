@@ -10,7 +10,8 @@ import {
   updateProfile
 } from '../controllers/authController';
 import { authenticateToken } from '../middlewares/auth';
-import { validateRequest } from '../utils/validation';
+import { zodValidate } from '../middlewares/zodValidate';
+import { loginSchema, registerSchema } from '../utils/validationSchemas';
 
 const router = express.Router();
 
@@ -28,9 +29,9 @@ const strictLimiter = rateLimit({
   legacyHeaders: false,
 });
 
-// Rutas públicas
-router.post('/login', strictLimiter, login);
-router.post('/register', strictLimiter, register);
+// Rutas públicas con validación
+router.post('/login', strictLimiter, zodValidate(loginSchema), login);
+router.post('/register', strictLimiter, zodValidate(registerSchema), register);
 router.post('/verify', authLimiter, verifyToken);
 router.get('/verify', authLimiter, verifyToken); // Agregar ruta GET para verificar token
 

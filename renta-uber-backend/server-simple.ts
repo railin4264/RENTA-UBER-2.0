@@ -1,16 +1,27 @@
 import express from 'express';
 import cors from 'cors';
 import jwt from 'jsonwebtoken';
+import dotenv from 'dotenv';
+
+// Load environment variables
+dotenv.config();
 
 const app = express();
-const PORT = 3001;
-const JWT_SECRET = 'renta-uber-secret-key-2024';
-const JWT_REFRESH_SECRET = 'renta-uber-refresh-secret-2024';
+const PORT = process.env.PORT || 3001;
+const JWT_SECRET = process.env.JWT_SECRET || 'default-secret-change-this';
+const JWT_REFRESH_SECRET = process.env.JWT_REFRESH_SECRET || 'default-refresh-secret-change-this';
+
+// Log warning if using default secrets
+if (!process.env.JWT_SECRET || !process.env.JWT_REFRESH_SECRET) {
+  console.warn('⚠️  WARNING: Using default JWT secrets. Please set JWT_SECRET and JWT_REFRESH_SECRET in .env file!');
+}
 
 // Middleware
 app.use(express.json());
 app.use(cors({
-  origin: true, // Permitir todos los orígenes para desarrollo
+  origin: process.env.NODE_ENV === 'production' 
+    ? process.env.FRONTEND_URL 
+    : ['http://localhost:5173', 'http://localhost:5174', 'http://localhost:3000'],
   credentials: true
 }));
 

@@ -1,0 +1,215 @@
+// This is your Prisma schema file for SQLite development
+// learn more about it in the docs: https://pris.ly/d/prisma-schema 
+
+generator client { 
+  provider = "prisma-client-js" 
+} 
+
+datasource db {
+  provider = "sqlite"
+  url      = "file:./dev.db"
+}
+
+model User { 
+  id        String   @id @default(cuid())
+  email     String   @unique 
+  password  String   
+  firstName String
+  lastName  String
+  role      String   @default("user") 
+  createdAt DateTime @default(now()) 
+  updatedAt DateTime @updatedAt 
+} 
+
+model Status {
+  id        String   @id @default(cuid())
+  name      String
+  module    String
+  color     String?
+  createdAt DateTime @default(now())
+  
+  // Relations
+  drivers     Driver[]
+  vehicles    Vehicle[]
+  contracts   Contract[]
+}
+
+model Driver {
+  id              String   @id @default(cuid())
+  photo           String?
+  firstName       String
+  lastName        String
+  cedula          String
+  cedulaPhoto     String?
+  license         String
+  licensePhoto    String?
+  licenseExpiry   String?
+  startDate       DateTime?
+  address         String?
+  googleMapsLink  String?
+  phone           String
+  email           String?
+  workplace       String?
+  emergencyContact String?
+  emergencyPhone  String?
+  salary          Float?
+  commission      Float?
+  notes           String?
+  documents       String?
+  createdAt       DateTime @default(now())
+  
+  // Relations
+  statusId      String?
+  status        Status?  @relation(fields: [statusId], references: [id])
+  guarantors    Guarantor[]
+  payments      Payment[]
+  contracts     Contract[]
+  debtRecords   DebtRecord[]
+}
+
+model Guarantor {
+  id             String   @id @default(cuid())
+  driverId       String
+  photo          String?
+  firstName      String
+  lastName       String
+  cedula         String
+  cedulaPhoto    String?
+  address        String
+  googleMapsLink String?
+  workplace      String
+  phone          String
+  createdAt      DateTime @default(now())
+  
+  // Relations
+  driver         Driver   @relation(fields: [driverId], references: [id], onDelete: Restrict)
+}
+
+model Vehicle {
+  id                    String   @id @default(cuid())
+  brand                 String?
+  model                 String
+  year                  Int?
+  color                 String?
+  plate                 String   @unique
+  vin                   String?
+  engine                String?
+  transmission          String?
+  fuelType              String?
+  mileage               Int?
+  lastMaintenance       String?
+  nextMaintenanceKm     Int?
+  documents             String?
+  photos                String?
+  status                String?
+  dailyRate             Float
+  weeklyRate            Float?
+  monthlyRate           Float?
+  notes                 String?
+  insuranceExpiry       String?
+  circulationPermitExpiry String?
+  inspectionExpiry      String?
+  createdAt             DateTime @default(now())
+  
+  // Relations
+  statusId              String?
+  vehicleStatus         Status?   @relation(fields: [statusId], references: [id])
+  contracts             Contract[]
+  expenses              Expense[]
+}
+
+model Payment {
+  id        String   @id @default(cuid())
+  driverId  String
+  amount    Float
+  type      String   // 'salary', 'commission', 'debt_payment', 'other'
+  date      DateTime
+  period    String?  // For salary: 'weekly', 'biweekly', 'monthly'
+  notes     String?
+  createdAt DateTime @default(now())
+  
+  // Relations
+  driver    Driver   @relation(fields: [driverId], references: [id])
+}
+
+model Expense {
+  id          String   @id @default(cuid())
+  vehicleId   String
+  type        String   // 'maintenance', 'fuel', 'insurance', 'fine', 'other'
+  amount      Float
+  date        DateTime
+  description String
+  receipt     String?
+  mileage     Int?
+  createdAt   DateTime @default(now())
+  
+  // Relations
+  vehicle     Vehicle  @relation(fields: [vehicleId], references: [id])
+}
+
+model Contract {
+  id              String    @id @default(cuid())
+  driverId        String
+  vehicleId       String
+  startDate       DateTime
+  endDate         DateTime?
+  type            String    // 'daily', 'weekly', 'monthly'
+  rate            Float
+  deposit         Float?
+  totalPaid       Float     @default(0)
+  balance         Float     @default(0)
+  status          String    @default("active") // 'active', 'completed', 'cancelled'
+  notes           String?
+  documents       String?
+  createdAt       DateTime  @default(now())
+  
+  // Relations
+  driver          Driver    @relation(fields: [driverId], references: [id])
+  vehicle         Vehicle   @relation(fields: [vehicleId], references: [id])
+  statusId        String?
+  contractStatus  Status?   @relation(fields: [statusId], references: [id])
+  fines           Fine[]
+}
+
+model Fine {
+  id         String   @id @default(cuid())
+  contractId String
+  amount     Float
+  reason     String
+  date       DateTime
+  paid       Boolean  @default(false)
+  paidDate   DateTime?
+  notes      String?
+  createdAt  DateTime @default(now())
+  
+  // Relations
+  contract   Contract @relation(fields: [contractId], references: [id])
+}
+
+model DebtRecord {
+  id          String   @id @default(cuid())
+  driverId    String
+  amount      Float
+  reason      String
+  date        DateTime
+  paid        Boolean  @default(false)
+  paidAmount  Float    @default(0)
+  paidDate    DateTime?
+  notes       String?
+  createdAt   DateTime @default(now())
+  
+  // Relations
+  driver      Driver   @relation(fields: [driverId], references: [id])
+}
+
+model ActivityLog {
+  id        String   @id @default(cuid())
+  userId    String?
+  action    String
+  entity    String   // 'driver', 'vehicle', 'payment', etc.
+  entityId  String
+  details   String?
+  ip        String?
+  userAgent String?
+  createdAt DateTime @default(now())
+}
