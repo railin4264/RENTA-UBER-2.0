@@ -1,5 +1,6 @@
 import express from 'express';
 import cors from 'cors';
+import dotenv from 'dotenv';
 import { PrismaClient } from '@prisma/client';
 import authRoutes from './routes/authRoutes';
 import driverRoutes from './routes/driverRoutes';
@@ -12,6 +13,9 @@ import statusRoutes from './routes/statusRoutes';
 import logRoutes from './routes/logRoutes';
 import { errorHandler, notFound } from './utils/errorHandler';
 import { requestLogger, errorLogger } from './middlewares/logging';
+
+// Load environment variables
+dotenv.config();
 
 const app = express();
 const prisma = new PrismaClient();
@@ -26,19 +30,32 @@ app.use('/uploads', express.static('uploads'));
 app.use(requestLogger);
 
 // CORS configuration
+const corsOrigins = process.env.NODE_ENV === 'production' 
+  ? [process.env.FRONTEND_URL || 'http://localhost:5173']
+  : [
+      'http://localhost:5173',
+      'http://localhost:5174',
+      'http://localhost:5175',
+      'http://localhost:5176',
+      'http://localhost:5177',
+      'http://localhost:5178',
+      'http://localhost:5179',
+      'http://localhost:5180',
+      'http://localhost:3000',
+      'http://localhost:3001'
+    ];
+
 app.use(cors({
-  origin: [
-    'http://localhost:5173',
-    'http://localhost:5174',
-    'http://localhost:5175',
-    'http://localhost:5176',
-    'http://localhost:5177',
-    'http://localhost:5178',
-    'http://localhost:5179',
-    'http://localhost:5180',
-    'null',
-    'file://'
-  ],
+  origin: (origin, callback) => {
+    // Allow requests with no origin (like mobile apps or curl requests)
+    if (!origin) return callback(null, true);
+    
+    if (corsOrigins.indexOf(origin) !== -1) {
+      callback(null, true);
+    } else {
+      callback(new Error('Not allowed by CORS'));
+    }
+  },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH'],
   allowedHeaders: ['Content-Type', 'Authorization']
