@@ -6,7 +6,7 @@ interface NotificationData {
   icon?: string;
   badge?: string;
   tag?: string;
-  data?: any;
+  data?: Record<string, string | number | boolean>;
   actions?: NotificationAction[];
   requireInteraction?: boolean;
   silent?: boolean;
@@ -150,7 +150,7 @@ export const useNotifications = () => {
         message: 'Notificación enviada',
         duration: 3000,
       });
-    } catch (error) {
+    } catch {
       addNotification({
         type: 'error',
         message: 'Error al enviar notificación',

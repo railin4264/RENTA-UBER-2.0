@@ -1,17 +1,11 @@
 import React, { useState } from 'react';
 import { 
-  Calendar,
-  DollarSign,
-  TrendingUp,
-  TrendingDown,
-  Download,
-  Filter,
-  BarChart3,
-  PieChart,
-  FileText,
-  Users,
-  Car,
-  AlertTriangle
+  FileText, 
+  Download, 
+  BarChart3, 
+  TrendingUp, 
+  Eye,
+  RefreshCw
 } from 'lucide-react';
 
 export default function ReportsManagement() {
@@ -138,7 +132,7 @@ export default function ReportsManagement() {
               }`}
             >
               <div className="flex items-center space-x-2">
-                <Users className="w-4 h-4" />
+                <FileText className="w-4 h-4" />
                 <span>Por Chofer</span>
               </div>
             </button>
@@ -151,7 +145,7 @@ export default function ReportsManagement() {
               }`}
             >
               <div className="flex items-center space-x-2">
-                <Car className="w-4 h-4" />
+                <Eye className="w-4 h-4" />
                 <span>Por Vehículo</span>
               </div>
             </button>
@@ -179,7 +173,7 @@ export default function ReportsManagement() {
                       <p className="text-red-100">Gastos Totales</p>
                       <p className="text-2xl font-bold">RD${monthlyData.expenses.toLocaleString()}</p>
                     </div>
-                    <TrendingDown className="w-8 h-8 text-red-200" />
+                    <RefreshCw className="w-8 h-8 text-red-200" />
                   </div>
                 </div>
 
@@ -189,7 +183,7 @@ export default function ReportsManagement() {
                       <p className="text-blue-100">Ganancia Neta</p>
                       <p className="text-2xl font-bold">RD${monthlyData.profit.toLocaleString()}</p>
                     </div>
-                    <DollarSign className="w-8 h-8 text-blue-200" />
+                    <Eye className="w-8 h-8 text-blue-200" />
                   </div>
                 </div>
 
@@ -199,7 +193,7 @@ export default function ReportsManagement() {
                       <p className="text-orange-100">Deudas Pendientes</p>
                       <p className="text-2xl font-bold">RD${monthlyData.pendingDebts.toLocaleString()}</p>
                     </div>
-                    <AlertTriangle className="w-8 h-8 text-orange-200" />
+                    <RefreshCw className="w-8 h-8 text-orange-200" />
                   </div>
                 </div>
               </div>
@@ -218,7 +212,7 @@ export default function ReportsManagement() {
 
                 <div className="bg-gray-50 rounded-xl p-6">
                   <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
-                    <PieChart className="w-5 h-5 mr-2" />
+                    <Eye className="w-5 h-5 mr-2" />
                     Distribución de Gastos
                   </h3>
                   <div className="h-64 flex items-center justify-center border-2 border-dashed border-gray-300 rounded-lg">
@@ -233,14 +227,14 @@ export default function ReportsManagement() {
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                   <div className="text-center">
                     <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-2">
-                      <Users className="w-8 h-8 text-blue-600" />
+                      <FileText className="w-8 h-8 text-blue-600" />
                     </div>
                     <p className="text-2xl font-bold text-gray-900">{monthlyData.drivers}</p>
                     <p className="text-sm text-gray-600">Choferes Activos</p>
                   </div>
                   <div className="text-center">
                     <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-2">
-                      <Car className="w-8 h-8 text-green-600" />
+                      <Eye className="w-8 h-8 text-green-600" />
                     </div>
                     <p className="text-2xl font-bold text-gray-900">{monthlyData.activeVehicles}</p>
                     <p className="text-sm text-gray-600">Vehículos Activos</p>

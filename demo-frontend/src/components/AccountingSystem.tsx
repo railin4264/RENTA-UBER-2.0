@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { toast } from 'react-hot-toast';
 import { 
@@ -7,16 +7,9 @@ import {
   TrendingDown, 
   PieChart, 
   BarChart3, 
-  Calendar,
   Download,
-  Filter,
   RefreshCw,
   Calculator,
-  AlertTriangle,
-  CheckCircle,
-  Clock,
-  Users,
-  Car,
   FileText
 } from 'lucide-react';
 
@@ -74,11 +67,7 @@ export default function AccountingSystem() {
   const [isLoading, setIsLoading] = useState(true);
   const { getAuthHeaders } = useAuth();
 
-  useEffect(() => {
-    loadFinancialData();
-  }, [selectedPeriod]);
-
-  const loadFinancialData = async () => {
+  const loadFinancialData = useCallback(async () => {
     try {
       setIsLoading(true);
       // Cargar datos reales desde reportes backend
@@ -165,7 +154,15 @@ export default function AccountingSystem() {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [getAuthHeaders]);
+
+  useEffect(() => {
+    loadFinancialData();
+  }, [loadFinancialData]);
+
+  useEffect(() => {
+    loadFinancialData();
+  }, [selectedPeriod, loadFinancialData]);
 
   const getProfitColor = (margin: number) => {
     if (margin >= 50) return 'text-green-600';
@@ -250,7 +247,7 @@ export default function AccountingSystem() {
               return (
                 <button
                   key={tab.id}
-                  onClick={() => setActiveTab(tab.id as any)}
+                  onClick={() => setActiveTab(tab.id as 'overview' | 'transactions' | 'reports' | 'cashflow')}
                   className={`py-4 px-1 border-b-2 font-medium text-sm transition-colors ${
                     activeTab === tab.id
                       ? 'border-blue-500 text-blue-600'

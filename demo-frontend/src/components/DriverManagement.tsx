@@ -1,30 +1,19 @@
-import React, { useState, useEffect } from 'react';
-import {
-  Users,
-  Plus,
-  Search,
-  Edit,
-  Trash2,
-  Eye,
-  Filter,
-  Download,
-  Upload,
-  AlertTriangle,
-  CheckCircle,
-  XCircle,
-  Phone,
-  Mail,
-  IdCard,
-  Car,
-  Calendar,
-  MapPin,
-  Shield,
-  FileText,
-  X
-} from 'lucide-react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { toast } from 'react-hot-toast';
 import { useAuth } from '../context/AuthContext';
+import { 
+  User, 
+  Plus, 
+  Search, 
+  Edit, 
+  Trash2,
+  UserCheck
+} from 'lucide-react';
+import LoadingSpinner from './LoadingSpinner';
+import EmptyState from './EmptyState';
+import ErrorState from './ErrorState';
 import DeleteConfirmationModal from './DeleteConfirmationModal';
+import { apiService } from '../services/api';
 
 interface Driver {
   id: string;
@@ -82,6 +71,17 @@ interface ValidationErrors {
   [key: string]: string;
 }
 
+interface DriverDetail {
+  type: string;
+  count: number;
+  details?: Array<{
+    id: string;
+    vehicle?: string;
+    status?: string;
+    amount?: number;
+  }>;
+}
+
 export default function DriverManagement() {
   const { getAuthHeaders } = useAuth();
   const [drivers, setDrivers] = useState<Driver[]>([]);
@@ -126,42 +126,43 @@ export default function DriverManagement() {
     isOpen: boolean;
     driverId: string | null;
     message: string;
-    details: any[];
+    details: DriverDetail[];
   }>({
     isOpen: false,
     driverId: null,
     message: '',
     details: []
   });
+  const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    loadDrivers();
-  }, []);
-
-  const loadDrivers = async () => {
+  const loadDrivers = useCallback(async () => {
     try {
       setIsLoading(true);
-      const response = await fetch('http://localhost:3001/api/drivers', {
-        headers: getAuthHeaders()
+      setError(null);
+      
+      const response = await apiService.getDrivers({
+        status: statusFilter !== 'all' ? statusFilter : undefined,
+        search: searchTerm || undefined
       });
-      if (response.ok) {
-        const result = await response.json();
-        // El backend devuelve { success: true, data: [...], count: number }
-        const driversData = result.success && Array.isArray(result.data) ? result.data : [];
-        setDrivers(driversData);
+      
+      if (response.success && response.data) {
+        setDrivers(response.data);
       } else {
+        setError(response.error || 'Error al cargar conductores');
         setDrivers([]);
-        toast.error('No se pudieron cargar los conductores');
       }
     } catch (error) {
       console.error('Error cargando conductores:', error);
-      // En caso de error, establecer un array vacío
+      setError('Error de conexión al cargar conductores');
       setDrivers([]);
-      toast.error('Error de conexión al cargar conductores');
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [statusFilter, searchTerm]);
+
+  useEffect(() => {
+    loadDrivers();
+  }, [loadDrivers]);
 
   const validateForm = (): boolean => {
     const newErrors: ValidationErrors = {};
@@ -278,7 +279,7 @@ export default function DriverManagement() {
       
       const method = editingDriver ? 'PUT' : 'POST';
 
-      const bodyPayload: any = {
+      const bodyPayload: DriverFormData = {
         ...formData,
         ...(includeGuarantor ? { guarantors: [guarantor] } : {})
       };
@@ -314,7 +315,7 @@ export default function DriverManagement() {
               const err = await uploadRes.json().catch(() => ({}));
               toast.error(err?.message || 'Error al subir la foto de perfil');
             }
-          } catch (err) {
+          } catch {
             toast.error('Error de conexión al subir la foto de perfil');
           }
         }
@@ -423,16 +424,16 @@ export default function DriverManagement() {
     setGuarantor({ firstName: '', lastName: '', cedula: '', address: '', phone: '', workplace: '', googleMapsLink: '' });
   };
 
-  const handlePhotoUpload = (e: React.ChangeEvent<HTMLInputElement>, type: 'photo' | 'cedula' | 'license') => {
-    const files = e.target.files;
-    if (!files) return;
+  // Funciones preparadas para uso futuro
+  // const handlePhotoUpload = (e: React.ChangeEvent<HTMLInputElement>, type: 'photo' | 'cedula' | 'license') => {
+  //   const files = e.target.files;
+  //   if (!files) return;
+  //   setFormData({ ...formData, [type]: files[0] });
+  // };
 
-    setFormData({ ...formData, [type]: files[0] });
-  };
-
-  const removePhoto = (type: 'photo' | 'cedula' | 'license') => {
-    setFormData({ ...formData, [type]: undefined });
-  };
+  // const removePhoto = (type: 'photo' | 'cedula' | 'license') => {
+  //   setFormData({ ...formData, [type]: undefined });
+  // };
 
   const filteredDrivers = Array.isArray(drivers) ? drivers.filter(driver => {
     const matchesSearch = 
@@ -459,11 +460,49 @@ export default function DriverManagement() {
 
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center h-64">
-        <div className="flex items-center space-x-2">
-          <div className="w-6 h-6 border-2 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
-          <span className="text-gray-600">Cargando conductores...</span>
+      <div className="space-y-6">
+        <div className="flex justify-between items-center">
+          <h1 className="text-2xl font-bold text-gray-900">Gestión de Conductores</h1>
         </div>
+        <LoadingSpinner size="lg" text="Cargando conductores..." />
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="space-y-6">
+        <div className="flex justify-between items-center">
+          <h1 className="text-2xl font-bold text-gray-900">Gestión de Conductores</h1>
+        </div>
+        <ErrorState
+          title="Error al cargar conductores"
+          message={error}
+          onRetry={loadDrivers}
+        />
+      </div>
+    );
+  }
+
+  if (filteredDrivers.length === 0) {
+    return (
+      <div className="space-y-6">
+        <div className="flex justify-between items-center">
+          <h1 className="text-2xl font-bold text-gray-900">Gestión de Conductores</h1>
+        </div>
+        <EmptyState
+          icon={User}
+          title="No hay conductores"
+          description="No hay conductores registrados. ¡Agrega uno nuevo para empezar!"
+          action={{
+            label: 'Nuevo Conductor',
+            onClick: () => {
+              resetForm();
+              setShowForm(true);
+              setEditingDriver(null);
+            }
+          }}
+        />
       </div>
     );
   }
@@ -551,7 +590,7 @@ export default function DriverManagement() {
                   <td className="px-6 py-4 whitespace-nowrap">
                     <div className="flex items-center">
                       <div className="w-10 h-10 bg-blue-500 rounded-full flex items-center justify-center">
-                        <Users className="w-5 h-5 text-white" />
+                        <User className="w-5 h-5 text-white" />
                       </div>
                       <div className="ml-4">
                         <div className="text-sm font-medium text-gray-900">
@@ -627,7 +666,7 @@ export default function DriverManagement() {
                 onClick={() => setShowForm(false)}
                 className="text-gray-500 hover:text-gray-700"
               >
-                <XCircle className="w-6 h-6" />
+                <UserCheck className="w-6 h-6" />
               </button>
             </div>
 

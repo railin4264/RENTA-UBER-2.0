@@ -1,45 +1,83 @@
 import React, { createContext, useContext, useReducer, ReactNode } from 'react';
 
-// Types
+interface Driver {
+  id: string;
+  firstName: string;
+  lastName: string;
+  email: string;
+  phone: string;
+  status: string;
+}
+
+interface Vehicle {
+  id: string;
+  plate: string;
+  model: string;
+  status: string;
+}
+
+interface Contract {
+  id: string;
+  driverId: string;
+  vehicleId: string;
+  startDate: string;
+  endDate: string;
+}
+
+interface Payment {
+  id: string;
+  amount: number;
+  status: string;
+}
+
+interface Expense {
+  id: string;
+  amount: number;
+  category: string;
+}
+
 interface AppState {
-  user: any | null;
-  drivers: any[];
-  vehicles: any[];
-  payments: any[];
-  expenses: any[];
-  contracts: any[];
+  drivers: Driver[];
+  vehicles: Vehicle[];
+  contracts: Contract[];
+  payments: Payment[];
+  expenses: Expense[];
   loading: boolean;
   error: string | null;
-  notifications: Notification[];
 }
 
 interface Notification {
   id: string;
   type: 'success' | 'error' | 'warning' | 'info';
+  title: string;
   message: string;
-  duration?: number;
+  timestamp: Date;
+  read: boolean;
 }
 
-type AppAction =
-  | { type: 'SET_USER'; payload: any }
-  | { type: 'SET_DRIVERS'; payload: any[] }
-  | { type: 'SET_VEHICLES'; payload: any[] }
-  | { type: 'SET_PAYMENTS'; payload: any[] }
-  | { type: 'SET_EXPENSES'; payload: any[] }
-  | { type: 'SET_CONTRACTS'; payload: any[] }
-  | { type: 'SET_LOADING'; payload: boolean }
-  | { type: 'SET_ERROR'; payload: string | null }
-  | { type: 'ADD_NOTIFICATION'; payload: Notification }
-  | { type: 'REMOVE_NOTIFICATION'; payload: string }
-  | { type: 'ADD_DRIVER'; payload: any }
-  | { type: 'UPDATE_DRIVER'; payload: any }
+type AppAction = 
+  | { type: 'SET_DRIVERS'; payload: Driver[] }
+  | { type: 'ADD_DRIVER'; payload: Driver }
+  | { type: 'UPDATE_DRIVER'; payload: Driver }
   | { type: 'DELETE_DRIVER'; payload: string }
-  | { type: 'ADD_VEHICLE'; payload: any }
-  | { type: 'UPDATE_VEHICLE'; payload: any }
+  | { type: 'SET_VEHICLES'; payload: Vehicle[] }
+  | { type: 'ADD_VEHICLE'; payload: Vehicle }
+  | { type: 'UPDATE_VEHICLE'; payload: Vehicle }
   | { type: 'DELETE_VEHICLE'; payload: string }
-  | { type: 'ADD_PAYMENT'; payload: any }
-  | { type: 'UPDATE_PAYMENT'; payload: any }
-  | { type: 'DELETE_PAYMENT'; payload: string };
+  | { type: 'SET_CONTRACTS'; payload: Contract[] }
+  | { type: 'ADD_CONTRACT'; payload: Contract }
+  | { type: 'UPDATE_CONTRACT'; payload: Contract }
+  | { type: 'DELETE_CONTRACT'; payload: string }
+  | { type: 'SET_PAYMENTS'; payload: Payment[] }
+  | { type: 'ADD_PAYMENT'; payload: Payment }
+  | { type: 'UPDATE_PAYMENT'; payload: Payment }
+  | { type: 'DELETE_PAYMENT'; payload: string }
+  | { type: 'SET_EXPENSES'; payload: Expense[] }
+  | { type: 'ADD_EXPENSE'; payload: Expense }
+  | { type: 'UPDATE_EXPENSE'; payload: Expense }
+  | { type: 'DELETE_EXPENSE'; payload: string }
+  | { type: 'SET_LOADING'; payload: boolean }
+  | { type: 'SET_ERROR'; payload: string };
 
 interface AppContextType {
   state: AppState;

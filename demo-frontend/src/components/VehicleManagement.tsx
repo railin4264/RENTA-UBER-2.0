@@ -1,28 +1,18 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { toast } from 'react-hot-toast';
 import { useAuth } from '../context/AuthContext';
-import {
-  Car,
-  Plus,
-  Search,
-  Edit,
+import { 
+  Car, 
+  Plus, 
+  Search, 
+  Edit, 
   Trash2,
-  Eye,
-  Filter,
-  Download,
-  Upload,
-  AlertTriangle,
-  CheckCircle,
-  XCircle,
-  Calendar,
-  MapPin,
-  Shield,
-  FileText,
-  Wrench,
-  Fuel,
-  Gauge,
-  Settings
+  XCircle
 } from 'lucide-react';
+import LoadingSpinner from './LoadingSpinner';
+import EmptyState from './EmptyState';
+import ErrorState from './ErrorState';
+import { apiService } from '../services/api';
 
 interface Vehicle {
   id: string;
@@ -111,34 +101,36 @@ export default function VehicleManagement() {
   });
   const [errors, setErrors] = useState<ValidationErrors>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    loadVehicles();
-  }, []);
-
-  const loadVehicles = async () => {
+  const loadVehicles = useCallback(async () => {
     try {
       setIsLoading(true);
-      const response = await fetch('http://localhost:3001/api/vehicles', {
-        headers: getAuthHeaders()
+      setError(null);
+      
+      const response = await apiService.getVehicles({
+        status: statusFilter !== 'all' ? statusFilter : undefined,
+        search: searchTerm || undefined
       });
-      if (response.ok) {
-        const result = await response.json();
-        // El backend devuelve { success: true, data: [...], count: number }
-        const vehiclesData = result.success && Array.isArray(result.data) ? result.data : [];
-        setVehicles(vehiclesData);
+      
+      if (response.success && response.data) {
+        setVehicles(response.data);
       } else {
+        setError(response.error || 'Error al cargar vehículos');
         setVehicles([]);
-        toast.error('No se pudieron cargar los vehículos');
       }
     } catch (error) {
       console.error('Error cargando vehículos:', error);
+      setError('Error de conexión al cargar vehículos');
       setVehicles([]);
-      toast.error('Error de conexión al cargar vehículos');
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [statusFilter, searchTerm]);
+
+  useEffect(() => {
+    loadVehicles();
+  }, [loadVehicles]);
 
   const validateForm = (): boolean => {
     const newErrors: ValidationErrors = {};
@@ -273,7 +265,7 @@ export default function VehicleManagement() {
               const err = await uploadRes.json().catch(() => ({}));
               toast.error(err?.message || 'Error al subir la foto del vehículo');
             }
-          } catch (err) {
+          } catch {
             toast.error('Error de conexión al subir la foto del vehículo');
           }
         }
@@ -436,11 +428,49 @@ export default function VehicleManagement() {
 
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center h-64">
-        <div className="flex items-center space-x-2">
-          <div className="w-6 h-6 border-2 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
-          <span className="text-gray-600">Cargando vehículos...</span>
+      <div className="space-y-6">
+        <div className="flex justify-between items-center">
+          <h1 className="text-2xl font-bold text-gray-900">Gestión de Vehículos</h1>
         </div>
+        <LoadingSpinner size="lg" text="Cargando vehículos..." />
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="space-y-6">
+        <div className="flex justify-between items-center">
+          <h1 className="text-2xl font-bold text-gray-900">Gestión de Vehículos</h1>
+        </div>
+        <ErrorState
+          title="Error al cargar vehículos"
+          message={error}
+          onRetry={loadVehicles}
+        />
+      </div>
+    );
+  }
+
+  if (filteredVehicles.length === 0) {
+    return (
+      <div className="space-y-6">
+        <div className="flex justify-between items-center">
+          <h1 className="text-2xl font-bold text-gray-900">Gestión de Vehículos</h1>
+        </div>
+        <EmptyState
+          icon={Car}
+          title="No hay vehículos"
+          description="No hay vehículos registrados. ¡Agrega uno nuevo para empezar!"
+          action={{
+            label: 'Nuevo Vehículo',
+            onClick: () => {
+              resetForm();
+              setShowForm(true);
+              setEditingVehicle(null);
+            }
+          }}
+        />
       </div>
     );
   }

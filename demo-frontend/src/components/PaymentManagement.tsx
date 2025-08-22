@@ -1,30 +1,14 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { toast } from 'react-hot-toast';
 import { useAuth } from '../context/AuthContext';
-import {
-  DollarSign,
-  Plus,
-  Search,
-  Edit,
+import { 
+  DollarSign, 
+  Plus, 
+  Search, 
+  Edit, 
   Trash2,
-  Eye,
-  Filter,
-  Download,
-  Upload,
-  AlertTriangle,
-  CheckCircle,
-  XCircle,
-  Calendar,
-  MapPin,
-  Shield,
-  Users,
-  Car,
-  Clock,
-  TrendingUp,
-  Calculator,
-  Receipt,
-  CreditCard,
-  Banknote
+  RefreshCw,
+  CreditCard
 } from 'lucide-react';
 
 interface Payment {
@@ -75,11 +59,28 @@ interface ValidationErrors {
   [key: string]: string;
 }
 
+interface Contract {
+  id: string;
+  driverId: string;
+  vehicleId: string;
+  startDate: string;
+  endDate: string;
+  rate: number;
+}
+
+interface Driver {
+  id: string;
+  firstName: string;
+  lastName: string;
+  email: string;
+  phone: string;
+}
+
 export default function PaymentManagement() {
   const { getAuthHeaders } = useAuth();
   const [payments, setPayments] = useState<Payment[]>([]);
-  const [contracts, setContracts] = useState<any[]>([]);
-  const [drivers, setDrivers] = useState<any[]>([]);
+  const [contracts, setContracts] = useState<Contract[]>([]);
+  const [drivers, setDrivers] = useState<Driver[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [editingPayment, setEditingPayment] = useState<Payment | null>(null);
@@ -102,48 +103,50 @@ export default function PaymentManagement() {
   const [errors, setErrors] = useState<ValidationErrors>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  useEffect(() => {
-    loadData();
-  }, []);
-
-  const loadData = async () => {
+  const loadData = useCallback(async () => {
     try {
       setIsLoading(true);
-      
-      // Cargar pagos
-      const paymentsResponse = await fetch('http://localhost:3001/api/payments', { headers: getAuthHeaders() });
+      const [paymentsResponse, driversResponse, contractsResponse] = await Promise.all([
+        fetch('http://localhost:3001/api/payments', { headers: getAuthHeaders() }),
+        fetch('http://localhost:3001/api/drivers', { headers: getAuthHeaders() }),
+        fetch('http://localhost:3001/api/contracts', { headers: getAuthHeaders() })
+      ]);
+
       if (paymentsResponse.ok) {
         const result = await paymentsResponse.json();
-        // El backend devuelve { success: true, data: [...], count: number }
-        const paymentsData = result.success && Array.isArray(result.data) ? result.data : [];
-        setPayments(paymentsData);
-      } else { setPayments([]); toast.error('No se pudieron cargar los pagos'); }
+        setPayments(result.success && Array.isArray(result.data) ? result.data : []);
+      } else {
+        setPayments([]);
+        toast.error('No se pudieron cargar los pagos');
+      }
 
-      // Cargar conductores
-      const driversResponse = await fetch('http://localhost:3001/api/drivers', { headers: getAuthHeaders() });
       if (driversResponse.ok) {
         const result = await driversResponse.json();
-        const driversData = result.success && Array.isArray(result.data) ? result.data : [];
-        setDrivers(driversData);
-      } else { setDrivers([]); }
+        setDrivers(result.success && Array.isArray(result.data) ? result.data : []);
+      } else {
+        setDrivers([]);
+      }
 
-      // Cargar contratos
-      const contractsResponse = await fetch('http://localhost:3001/api/contracts', { headers: getAuthHeaders() });
       if (contractsResponse.ok) {
         const result = await contractsResponse.json();
-        const contractsData = result.success && Array.isArray(result.data) ? result.data : [];
-        setContracts(contractsData);
-      } else { setContracts([]); }
+        setContracts(result.success && Array.isArray(result.data) ? result.data : []);
+      } else {
+        setContracts([]);
+      }
     } catch (error) {
       console.error('Error cargando datos:', error);
-      // En caso de error, establecer arrays vacíos
       setPayments([]);
       setDrivers([]);
       setContracts([]);
+      toast.error('Error de conexión al cargar datos');
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [getAuthHeaders]);
+
+  useEffect(() => {
+    loadData();
+  }, [loadData]);
 
   const validateForm = (): boolean => {
     const newErrors: ValidationErrors = {};
@@ -352,14 +355,14 @@ export default function PaymentManagement() {
   const getMethodIcon = (method: string) => {
     switch (method) {
       case 'cash':
-        return <Banknote className="w-4 h-4" />;
+        return <DollarSign className="w-4 h-4" />;
       case 'bank_transfer':
-        return <Shield className="w-4 h-4" />;
+        return <RefreshCw className="w-4 h-4" />;
       case 'credit_card':
       case 'debit_card':
         return <CreditCard className="w-4 h-4" />;
       case 'mobile_payment':
-        return <Receipt className="w-4 h-4" />;
+        return <DollarSign className="w-4 h-4" />; // Assuming mobile payment uses cash icon or similar
       default:
         return <DollarSign className="w-4 h-4" />;
     }
@@ -601,7 +604,6 @@ export default function PaymentManagement() {
                 onClick={() => setShowForm(false)}
                 className="text-gray-500 hover:text-gray-700"
               >
-                <XCircle className="w-6 h-6" />
               </button>
             </div>
 
@@ -683,7 +685,7 @@ export default function PaymentManagement() {
                   </label>
                   <select
                     value={formData.type}
-                    onChange={(e) => setFormData({...formData, type: e.target.value as any})}
+                    onChange={(e) => setFormData({...formData, type: e.target.value as 'payment' | 'deposit' | 'penalty' | 'refund'})}
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
                   >
                     <option value="payment">Pago</option>
@@ -699,7 +701,7 @@ export default function PaymentManagement() {
                   </label>
                   <select
                     value={formData.status}
-                    onChange={(e) => setFormData({...formData, status: e.target.value as any})}
+                    onChange={(e) => setFormData({...formData, status: e.target.value as 'pending' | 'completed' | 'failed' | 'cancelled'})}
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
                   >
                     <option value="pending">Pendiente</option>
@@ -718,7 +720,7 @@ export default function PaymentManagement() {
                   </label>
                   <select
                     value={formData.method}
-                    onChange={(e) => setFormData({...formData, method: e.target.value as any})}
+                    onChange={(e) => setFormData({...formData, method: e.target.value as 'cash' | 'bank_transfer' | 'credit_card' | 'debit_card' | 'mobile_payment'})}
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
                   >
                     <option value="cash">Efectivo</option>

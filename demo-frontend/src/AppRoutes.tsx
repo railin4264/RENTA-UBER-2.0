@@ -29,12 +29,42 @@ interface Notification {
 
 function AppRoutes() {
   const navigate = useNavigate();
-  const { isAuthenticated, isLoading, login, user } = useAuth();
+  const { isAuthenticated, isLoading, login } = useAuth();
   const [notifications, setNotifications] = useState<Notification[]>([]);
 
-  const handleLoginSuccess = (token: string) => {
-    // Extraer información del usuario del token o hacer una petición adicional
-    login(token, { email: 'admin@renta-uber.com', name: 'Administrador' });
+  const handleLoginSuccess = async (token: string) => {
+    try {
+      // Obtener información del usuario del backend
+      const response = await fetch('http://localhost:3001/api/auth/validate', {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        if (data.success && data.user) {
+          login(token, {
+            id: data.user.id,
+            email: data.user.email,
+            name: `${data.user.firstName} ${data.user.lastName}`,
+            firstName: data.user.firstName,
+            lastName: data.user.lastName,
+            role: data.user.role,
+            avatar: data.user.avatar
+          });
+        } else {
+          login(token, { id: '1', email: 'admin@renta-uber.com', name: 'Administrador' });
+        }
+      } else {
+        login(token, { id: '1', email: 'admin@renta-uber.com', name: 'Administrador' });
+      }
+    } catch (error) {
+      console.error('Error obteniendo datos del usuario:', error);
+      login(token, { id: '1', email: 'admin@renta-uber.com', name: 'Administrador' });
+    }
+
     navigate('/');
     // Add welcome notification
     addNotification({

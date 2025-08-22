@@ -27,11 +27,11 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
 
       const result = await response.json();
 
-      if (response.ok && result.success && result.data?.token) {
-        onLoginSuccess(result.data.token);
+      if (response.ok && result.success && result.data?.accessToken) {
+        onLoginSuccess(result.data.accessToken);
         toast.success('Inicio de sesión exitoso');
       } else {
-        toast.error(result.message || 'Error al iniciar sesión');
+        toast.error(result.error || result.message || 'Error al iniciar sesión');
       }
     } catch (error) {
       console.error('Error de login:', error);
