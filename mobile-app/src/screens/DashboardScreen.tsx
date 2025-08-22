@@ -276,6 +276,8 @@ export default function DashboardScreen() {
               }}
               width={screenWidth - 48}
               height={200}
+              yAxisLabel=""
+              yAxisSuffix=""
               chartConfig={{
                 backgroundColor: '#FFFFFF',
                 backgroundGradientFrom: '#FFFFFF',

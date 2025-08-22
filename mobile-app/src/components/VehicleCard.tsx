@@ -137,7 +137,7 @@ const VehicleCard: React.FC<VehicleCardProps> = ({
         <View style={styles.detailRow}>
           <View style={styles.detailItem}>
             <Icon name="wrench" size={16} color="#6b7280" />
-            <Text style={styles.detailLabel}>Último Mant.:Text>
+            <Text style={styles.detailLabel}>Último Mant.:</Text>
             <Text style={styles.detailValue}>
               {new Date(vehicle.lastMaintenance).toLocaleDateString('es-ES')}
             </Text>
@@ -145,7 +145,7 @@ const VehicleCard: React.FC<VehicleCardProps> = ({
           
           <View style={styles.detailItem}>
             <Icon name="clock" size={16} color="#6b7280" />
-            <Text style={styles.detailLabel}>Próximo Mant.:Text>
+            <Text style={styles.detailLabel}>Próximo Mant.:</Text>
             <Text style={[
               styles.detailValue,
               isMaintenanceDue && styles.expiredText,

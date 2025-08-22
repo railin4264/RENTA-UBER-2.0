@@ -67,7 +67,7 @@ class ApiService {
         // Manejar errores específicos
         if (response.status === 401) {
           // Token expirado, limpiar cache y redirigir a login
-          await this.clearCache();
+          this.cache.clear();
           await AsyncStorage.removeItem('auth_token');
           await AsyncStorage.removeItem('auth_user');
         }
@@ -329,9 +329,9 @@ class ApiService {
     }
   }
 
-  // Limpiar cache
+  // Limpiar cache público
   clearCache() {
-    this.clearCache();
+    this.cache.clear();
   }
 
   // Verificar estado de conexión

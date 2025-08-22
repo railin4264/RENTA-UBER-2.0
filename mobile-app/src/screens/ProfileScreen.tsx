@@ -216,7 +216,7 @@ export default function ProfileScreen() {
             <Image
               source={{ uri: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=150&h=150&fit=crop&crop=face' }}
               style={styles.profileImage}
-              defaultSource={require('../../assets/default-avatar.png')}
+              // defaultSource={require('../../assets/default-avatar.png')}
             />
             <TouchableOpacity style={styles.editImageButton}>
               <Icon name="camera" size={16} color="#ffffff" />
