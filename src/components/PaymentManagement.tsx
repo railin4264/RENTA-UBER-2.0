@@ -110,17 +110,20 @@ export default function PaymentManagement() {
     try {
       setIsLoading(true);
       
+      const api = import.meta.env.VITE_API_URL || 'http://localhost:3001/api';
       // Cargar pagos
-      const paymentsResponse = await fetch('http://localhost:3001/api/payments', { headers: getAuthHeaders() });
+      const paymentsResponse = await fetch(`${api}/payments`, { headers: getAuthHeaders() });
       if (paymentsResponse.ok) {
         const result = await paymentsResponse.json();
-        // El backend devuelve { success: true, data: [...], count: number }
         const paymentsData = result.success && Array.isArray(result.data) ? result.data : [];
         setPayments(paymentsData);
+        if (result.meta && typeof result.meta.total === 'number') {
+          // setTotal(result.meta.total); // This line was removed from the new_code, so it's removed here.
+        }
       } else { setPayments([]); toast.error('No se pudieron cargar los pagos'); }
 
       // Cargar conductores
-      const driversResponse = await fetch('http://localhost:3001/api/drivers', { headers: getAuthHeaders() });
+      const driversResponse = await fetch(`${api}/drivers`, { headers: getAuthHeaders() });
       if (driversResponse.ok) {
         const result = await driversResponse.json();
         const driversData = result.success && Array.isArray(result.data) ? result.data : [];
@@ -128,18 +131,15 @@ export default function PaymentManagement() {
       } else { setDrivers([]); }
 
       // Cargar contratos
-      const contractsResponse = await fetch('http://localhost:3001/api/contracts', { headers: getAuthHeaders() });
+      const contractsResponse = await fetch(`${api}/contracts`, { headers: getAuthHeaders() });
       if (contractsResponse.ok) {
         const result = await contractsResponse.json();
         const contractsData = result.success && Array.isArray(result.data) ? result.data : [];
         setContracts(contractsData);
       } else { setContracts([]); }
     } catch (error) {
-      console.error('Error cargando datos:', error);
-      // En caso de error, establecer arrays vacíos
-      setPayments([]);
-      setDrivers([]);
-      setContracts([]);
+      console.error('Error cargando pagos:', error);
+      toast.error('Error de conexión');
     } finally {
       setIsLoading(false);
     }
@@ -203,9 +203,10 @@ export default function PaymentManagement() {
     setIsSubmitting(true);
 
     try {
+      const api = import.meta.env.VITE_API_URL || 'http://localhost:3001/api';
       const url = editingPayment 
-        ? `http://localhost:3001/api/payments/${editingPayment.id}`
-        : 'http://localhost:3001/api/payments';
+        ? `${api}/payments/${editingPayment.id}`
+        : `${api}/payments`;
       
       const method = editingPayment ? 'PUT' : 'POST';
 
@@ -260,7 +261,8 @@ export default function PaymentManagement() {
     }
 
     try {
-      const response = await fetch(`http://localhost:3001/api/payments/${id}`, {
+      const api = import.meta.env.VITE_API_URL || 'http://localhost:3001/api';
+      const response = await fetch(`${api}/payments/${id}`, {
         method: 'DELETE',
         headers: getAuthHeaders()
       });

@@ -141,7 +141,8 @@ export default function DriverManagement() {
   const loadDrivers = async () => {
     try {
       setIsLoading(true);
-      const response = await fetch('http://localhost:3001/api/drivers', {
+      const api = import.meta.env.VITE_API_URL || 'http://localhost:3001/api';
+      const response = await fetch(`${api}/drivers`, {
         headers: getAuthHeaders()
       });
       if (response.ok) {
@@ -272,9 +273,10 @@ export default function DriverManagement() {
     setIsSubmitting(true);
 
     try {
+      const api = import.meta.env.VITE_API_URL || 'http://localhost:3001/api';
       const url = editingDriver 
-        ? `http://localhost:3001/api/drivers/${editingDriver.id}`
-        : 'http://localhost:3001/api/drivers';
+        ? `${api}/drivers/${editingDriver.id}`
+        : `${api}/drivers`;
       
       const method = editingDriver ? 'PUT' : 'POST';
 
@@ -302,7 +304,8 @@ export default function DriverManagement() {
           const fd = new FormData();
           fd.append('photo', formData.photo);
           try {
-            const uploadRes = await fetch(`http://localhost:3001/api/drivers/${driverId}/photo`, {
+            const api = import.meta.env.VITE_API_URL || 'http://localhost:3001/api';
+            const uploadRes = await fetch(`${api}/drivers/${driverId}/photo`, {
               method: 'POST',
               headers: {
                 // Authorization must be sent, but NOT content-type for FormData
@@ -363,7 +366,8 @@ export default function DriverManagement() {
     }
 
     try {
-      const response = await fetch(`http://localhost:3001/api/drivers/${id}`, {
+      const api = import.meta.env.VITE_API_URL || 'http://localhost:3001/api';
+      const response = await fetch(`${api}/drivers/${id}`, {
         method: 'DELETE',
         headers: getAuthHeaders()
       });

@@ -40,8 +40,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     }
 
     try {
-      // Verificar si el token es válido haciendo una petición al backend
-      const response = await fetch('http://localhost:3001/api/auth/verify', {
+      const api = import.meta.env.VITE_API_URL || 'http://localhost:3001/api';
+      const response = await fetch(`${api}/auth/verify`, {
         method: 'GET',
         headers: {
           'Authorization': `Bearer ${storedToken}`,
@@ -50,14 +50,14 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       });
 
       if (response.ok) {
-        const data = await response.json();
+        const result = await response.json();
+        const userData = result?.data?.user || result?.user || null;
         setToken(storedToken);
-        setUser(data.user || null);
+        setUser(userData);
         setIsAuthenticated(true);
         setIsLoading(false);
         return true;
       } else {
-        // Token inválido, limpiar
         logout();
         return false;
       }

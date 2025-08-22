@@ -57,17 +57,15 @@ export default function AdvancedReports() {
 
   const fetchDashboardReport = async () => {
     try {
-      const res = await fetch('http://localhost:3001/api/reports/dashboard', {
+      const api = import.meta.env.VITE_API_URL || 'http://localhost:3001/api';
+      const res = await fetch(`${api}/reports/dashboard`, {
         headers: getAuthHeaders()
       });
-      const json = await res.json();
-      if (res.ok && json.success) {
-        setDashboardData(json.data);
-      } else {
-        toast.error(json.message || 'No se pudo cargar el reporte de dashboard');
-      }
-    } catch (e) {
-      toast.error('Error de conexión al cargar reportes');
+      if (!res.ok) throw new Error('Error al cargar el reporte');
+      const data = await res.json();
+      setDashboardData(data);
+    } catch (e: any) {
+      toast.error(e?.message || 'Error al cargar el reporte');
     }
   };
 
