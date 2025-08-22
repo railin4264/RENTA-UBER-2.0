@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { toast } from 'react-hot-toast';
 import { useAuth } from '../context/AuthContext';
+import { apiService } from '../services/api';
 import {
   Receipt,
   Plus,
@@ -103,13 +104,13 @@ export default function ExpenseManagement() {
       setIsLoading(true);
       
       // Cargar gastos
-      const expensesResponse = await fetch('http://localhost:3001/api/expenses', { headers: getAuthHeaders() });
-      if (expensesResponse.ok) {
-        const result = await expensesResponse.json();
-        // El backend devuelve { success: true, data: [...], count: number }
-        const expensesData = result.success && Array.isArray(result.data) ? result.data : [];
-        setExpenses(expensesData);
-      } else { setExpenses([]); toast.error('No se pudieron cargar los gastos'); }
+      const expensesRes = await apiService.getExpenses();
+      if (expensesRes.success && Array.isArray(expensesRes.data)) {
+        setExpenses(expensesRes.data);
+      } else {
+        setExpenses([]);
+        toast.error(expensesRes.error || 'No se pudieron cargar los gastos');
+      }
 
       // Cargar vehículos
       const vehiclesResponse = await fetch('http://localhost:3001/api/vehicles', { headers: getAuthHeaders() });
@@ -186,29 +187,17 @@ export default function ExpenseManagement() {
     setIsSubmitting(true);
 
     try {
-      const url = editingExpense 
-        ? `http://localhost:3001/api/expenses/${editingExpense.id}`
-        : 'http://localhost:3001/api/expenses';
-      
-      const method = editingExpense ? 'PUT' : 'POST';
+      const result = editingExpense
+        ? await apiService.updateExpense(editingExpense.id, formData)
+        : await apiService.createExpense(formData);
 
-      const response = await fetch(url, {
-        method,
-        headers: {
-          'Content-Type': 'application/json',
-          ...getAuthHeaders()
-        },
-        body: JSON.stringify(formData),
-      });
-
-      if (response.ok) {
+      if (result.success) {
         setShowForm(false);
         setEditingExpense(null);
         resetForm();
         loadData();
       } else {
-        const errorData = await response.json();
-        toast.error(errorData.error || 'Error al guardar el gasto');
+        toast.error(result.error || 'Error al guardar el gasto');
       }
     } catch (error) {
       console.error('Error guardando gasto:', error);
@@ -241,17 +230,12 @@ export default function ExpenseManagement() {
     }
 
     try {
-      const response = await fetch(`http://localhost:3001/api/expenses/${id}`, {
-        method: 'DELETE',
-        headers: getAuthHeaders()
-      });
-
-      if (response.ok) {
+      const res = await apiService.deleteExpense(id);
+      if (res.success) {
         loadData();
         toast.success('Gasto eliminado');
       } else {
-        const errorData = await response.json();
-        toast.error(errorData.error || 'Error al eliminar el gasto');
+        toast.error(res.error || 'Error al eliminar el gasto');
       }
     } catch (error) {
       console.error('Error eliminando gasto:', error);
