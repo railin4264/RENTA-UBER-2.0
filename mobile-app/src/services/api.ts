@@ -1,5 +1,5 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import NetInfo from '@react-native-netinfo/netinfo';
+import NetInfo from '@react-native-community/netinfo';
 
 const API_BASE_URL = 'http://localhost:3001/api';
 const CACHE_EXPIRY = 5 * 60 * 1000; // 5 minutos
