@@ -18,7 +18,6 @@ import {
   Search,
   FileText as LogsIcon
 } from 'lucide-react';
-import { useApp } from '../context/AppContext';
 import { useAuth } from '../context/AuthContext';
 import { toast } from 'react-hot-toast';
 import LogViewer from './LogViewer';
@@ -30,7 +29,6 @@ interface LayoutProps {
 export default function Layout({ children }: LayoutProps) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [logViewerOpen, setLogViewerOpen] = useState(false);
-  const { state } = useApp();
   const { user, logout } = useAuth();
   const location = useLocation();
   const navigate = useNavigate();

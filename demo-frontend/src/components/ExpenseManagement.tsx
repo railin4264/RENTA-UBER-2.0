@@ -1,33 +1,13 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { toast } from 'react-hot-toast';
 import { useAuth } from '../context/AuthContext';
-import {
-  Receipt,
-  Plus,
-  Search,
-  Edit,
+import { 
+  Plus, 
+  Search, 
+  Edit, 
   Trash2,
-  Eye,
-  Filter,
-  Download,
-  Upload,
-  AlertTriangle,
-  CheckCircle,
-  XCircle,
-  Calendar,
-  MapPin,
-  Shield,
-  Users,
-  Car,
-  Clock,
-  TrendingUp,
-  Calculator,
-  DollarSign,
-  CreditCard,
-  Banknote,
-  Wrench,
-  Fuel,
-  Gauge
+  RefreshCw,
+  FileText
 } from 'lucide-react';
 
 interface Expense {
@@ -94,24 +74,38 @@ export default function ExpenseManagement() {
   const [errors, setErrors] = useState<ValidationErrors>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  useEffect(() => {
-    loadData();
-  }, []);
-
-  const loadData = async () => {
+  const loadData = useCallback(async () => {
     try {
       setIsLoading(true);
+      const response = await fetch('http://localhost:3001/api/expenses', {
+        headers: getAuthHeaders()
+      });
       
-      // Cargar gastos
-      const expensesResponse = await fetch('http://localhost:3001/api/expenses', { headers: getAuthHeaders() });
-      if (expensesResponse.ok) {
-        const result = await expensesResponse.json();
-        // El backend devuelve { success: true, data: [...], count: number }
-        const expensesData = result.success && Array.isArray(result.data) ? result.data : [];
-        setExpenses(expensesData);
-      } else { setExpenses([]); toast.error('No se pudieron cargar los gastos'); }
+      if (response.ok) {
+        const data = await response.json();
+        if (data.success) {
+          setExpenses(data.data || []);
+        } else {
+          toast.error('No se pudieron cargar los gastos');
+        }
+      } else {
+        toast.error('Error al cargar los gastos');
+      }
+    } catch (error) {
+      console.error('Error cargando gastos:', error);
+      toast.error('Error de conexión al cargar gastos');
+    } finally {
+      setIsLoading(false);
+    }
+  }, [getAuthHeaders]);
 
-      // Cargar vehículos
+  useEffect(() => {
+    loadData();
+  }, [loadData]);
+
+  // Cargar vehículos
+  const loadVehicles = useCallback(async () => {
+    try {
       const vehiclesResponse = await fetch('http://localhost:3001/api/vehicles', { headers: getAuthHeaders() });
       if (vehiclesResponse.ok) {
         const result = await vehiclesResponse.json();
@@ -119,14 +113,14 @@ export default function ExpenseManagement() {
         setVehicles(vehiclesData);
       } else { setVehicles([]); }
     } catch (error) {
-      console.error('Error cargando datos:', error);
-      // En caso de error, establecer arrays vacíos
-      setExpenses([]);
+      console.error('Error cargando vehículos:', error);
       setVehicles([]);
-    } finally {
-      setIsLoading(false);
     }
-  };
+  }, [getAuthHeaders]);
+
+  useEffect(() => {
+    loadVehicles();
+  }, [loadVehicles]);
 
   const validateForm = (): boolean => {
     const newErrors: ValidationErrors = {};
@@ -334,19 +328,19 @@ export default function ExpenseManagement() {
   const getCategoryIcon = (category: string) => {
     switch (category) {
       case 'maintenance':
-        return <Wrench className="w-4 h-4" />;
+        return <RefreshCw className="w-4 h-4" />;
       case 'fuel':
-        return <Fuel className="w-4 h-4" />;
+        return <FileText className="w-4 h-4" />;
       case 'insurance':
-        return <Shield className="w-4 h-4" />;
+        return <RefreshCw className="w-4 h-4" />;
       case 'repairs':
-        return <Gauge className="w-4 h-4" />;
+        return <FileText className="w-4 h-4" />;
       case 'tires':
-        return <Car className="w-4 h-4" />;
+        return <RefreshCw className="w-4 h-4" />;
       case 'other':
-        return <Receipt className="w-4 h-4" />;
+        return <FileText className="w-4 h-4" />;
       default:
-        return <Receipt className="w-4 h-4" />;
+        return <FileText className="w-4 h-4" />;
     }
   };
 
@@ -507,7 +501,7 @@ export default function ExpenseManagement() {
                   <td className="px-6 py-4 whitespace-nowrap">
                     <div className="flex items-center">
                       <div className="w-10 h-10 bg-red-500 rounded-lg flex items-center justify-center">
-                        <Receipt className="w-5 h-5 text-white" />
+                        <FileText className="w-5 h-5 text-white" />
                       </div>
                       <div className="ml-4">
                         <div className="text-sm font-medium text-gray-900">
@@ -589,7 +583,7 @@ export default function ExpenseManagement() {
                 onClick={() => setShowForm(false)}
                 className="text-gray-500 hover:text-gray-700"
               >
-                <XCircle className="w-6 h-6" />
+                <RefreshCw className="w-6 h-6" />
               </button>
             </div>
 
@@ -625,7 +619,8 @@ export default function ExpenseManagement() {
                   </label>
                   <select
                     value={formData.category}
-                    onChange={(e) => setFormData({...formData, category: e.target.value as any})}
+                    onChange={(e) => setFormData({...formData, category: e.target.value as 'maintenance' | 'fuel' | 'insurance' | 'repairs' | 'tires' | 'other'})
+                    }
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
                   >
                     <option value="maintenance">Mantenimiento</option>
@@ -743,7 +738,8 @@ export default function ExpenseManagement() {
                   </label>
                   <select
                     value={formData.paymentMethod}
-                    onChange={(e) => setFormData({...formData, paymentMethod: e.target.value as any})}
+                    onChange={(e) => setFormData({...formData, paymentMethod: e.target.value as 'cash' | 'bank_transfer' | 'credit_card' | 'debit_card'})
+                    }
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
                   >
                     <option value="cash">Efectivo</option>
@@ -762,7 +758,8 @@ export default function ExpenseManagement() {
                   </label>
                   <select
                     value={formData.status}
-                    onChange={(e) => setFormData({...formData, status: e.target.value as any})}
+                    onChange={(e) => setFormData({...formData, status: e.target.value as 'pending' | 'paid' | 'cancelled'})
+                    }
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
                   >
                     <option value="pending">Pendiente</option>

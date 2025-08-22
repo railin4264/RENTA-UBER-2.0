@@ -828,19 +828,34 @@ app.get('/api/statuses', authenticateToken, (req, res) => {
 });
 
 // Error handling middleware
-app.use((err: any, req: any, res: any, next: any) => {
-  console.error(err.stack);
+app.use((err: Error, req: express.Request, res: express.Response, next: express.NextFunction) => {
+  console.error('Error:', err.message);
+  console.error('Stack:', err.stack);
+  
   res.status(500).json({
     success: false,
-    error: 'Error interno del servidor'
+    error: 'Error interno del servidor',
+    message: process.env.NODE_ENV === 'development' ? err.message : 'Error interno del servidor'
   });
 });
 
 // 404 handler
-app.use('*', (req, res) => {
+app.use('*', (req: express.Request, res: express.Response) => {
   res.status(404).json({
     success: false,
-    error: 'Endpoint no encontrado'
+    error: 'Endpoint no encontrado',
+    message: `La ruta ${req.originalUrl} no existe`
+  });
+});
+
+// Add health check endpoint
+app.get('/health', (req: express.Request, res: express.Response) => {
+  res.json({
+    status: 'OK',
+    timestamp: new Date().toISOString(),
+    uptime: process.uptime(),
+    version: '1.0.0',
+    environment: process.env.NODE_ENV || 'development'
   });
 });
 
@@ -854,6 +869,7 @@ app.listen(PORT, () => {
   console.log(`📋 Contratos: http://localhost:${PORT}/api/contracts`);
   console.log(`💸 Gastos: http://localhost:${PORT}/api/expenses`);
   console.log(`🏷️ Estados: http://localhost:${PORT}/api/statuses`);
+  console.log(`🏥 Health: http://localhost:${PORT}/health`);
   console.log(`\n📱 Credenciales de prueba:`);
   console.log(`   Email: admin@renta-uber.com`);
   console.log(`   Contraseña: admin123`);

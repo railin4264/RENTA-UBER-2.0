@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import toast from 'react-hot-toast';
 
@@ -14,7 +14,7 @@ const LogViewer: React.FC<LogViewerProps> = ({ isOpen, onClose }) => {
   const [activeTab, setActiveTab] = useState<'app' | 'errors'>('app');
   const [loading, setLoading] = useState(false);
 
-  const fetchLogs = async (type: 'app' | 'errors') => {
+  const fetchLogs = useCallback(async (type: 'app' | 'errors') => {
     setLoading(true);
     try {
       const response = await fetch(`http://localhost:3001/api/logs/${type}`, {
@@ -37,7 +37,7 @@ const LogViewer: React.FC<LogViewerProps> = ({ isOpen, onClose }) => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [getAuthHeaders]);
 
   const clearLogs = async () => {
     try {
@@ -64,7 +64,7 @@ const LogViewer: React.FC<LogViewerProps> = ({ isOpen, onClose }) => {
       fetchLogs('app');
       fetchLogs('errors');
     }
-  }, [isOpen]);
+  }, [isOpen, fetchLogs]);
 
   if (!isOpen) return null;
 

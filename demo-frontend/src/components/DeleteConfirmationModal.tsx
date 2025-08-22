@@ -1,12 +1,25 @@
 import React from 'react';
 import { X, AlertTriangle, FileText, DollarSign } from 'lucide-react';
 
+interface DetailItem {
+  id: string;
+  vehicle?: string;
+  status?: string;
+  amount?: number;
+}
+
+interface IssueDetail {
+  type: string;
+  count: number;
+  details?: DetailItem[];
+}
+
 interface DeleteConfirmationModalProps {
   isOpen: boolean;
   onClose: () => void;
   title: string;
   message: string;
-  details?: any[];
+  details?: IssueDetail[];
   onConfirm?: () => void;
   showConfirmButton?: boolean;
 }
@@ -77,7 +90,7 @@ export default function DeleteConfirmationModal({
                   
                   {issue.details && issue.details.length > 0 && (
                     <div className="ml-7 space-y-1">
-                      {issue.details.map((detail: any, detailIndex: number) => (
+                      {issue.details.map((detail: DetailItem, detailIndex: number) => (
                         <div key={detailIndex} className="text-sm text-gray-600">
                           {issue.type === 'contracts' && (
                             <span>

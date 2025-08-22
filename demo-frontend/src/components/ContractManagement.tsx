@@ -1,32 +1,13 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import { toast } from 'react-hot-toast';
 import { useAuth } from '../context/AuthContext';
-import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query';
-import { useForm } from 'react-hook-form';
-import { z } from 'zod';
-import { zodResolver } from '@hookform/resolvers/zod';
 import {
   FileText,
   Plus,
   Search,
   Edit,
   Trash2,
-  Eye,
-  Filter,
-  Download,
-  Upload,
-  AlertTriangle,
-  CheckCircle,
-  XCircle,
-  Calendar,
-  MapPin,
-  Shield,
-  Users,
-  Car,
-  DollarSign,
-  Clock,
-  TrendingUp,
-  Calculator
+  XCircle
 } from 'lucide-react';
 
 interface Contract {
@@ -65,56 +46,62 @@ interface Contract {
   updatedAt: string;
 }
 
-interface ContractFormData {
-  driverId: string;
-  vehicleId: string;
-  startDate: string;
-  endDate: string;
-  rate: number;
-  rateType: 'daily' | 'weekly' | 'monthly';
-  deposit: number;
-  statusId: string;
-  terms: string;
-  notes: string;
-}
-
 interface ValidationErrors {
   [key: string]: string;
 }
 
+// Interfaces preparadas para uso futuro
+// interface ContractFormData {
+//   driverId: string;
+//   vehicleId: string;
+//   startDate: string;
+//   endDate: string;
+//   rate: number;
+//   rateType: 'daily' | 'weekly' | 'monthly';
+//   deposit: number;
+//   statusId: string;
+//   terms: string;
+//   notes: string;
+// }
+
+// interface QueryKey {
+//   queryKey: [string, { page: number; limit: number; q: string }];
+// }
+
 export default function ContractManagement() {
   const { getAuthHeaders } = useAuth();
-  const queryClient = useQueryClient();
+  // const queryClient = useQueryClient();
+  const [contracts, setContracts] = useState<Contract[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [editingContract, setEditingContract] = useState<Contract | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
-  const [page, setPage] = useState<number>(1);
-  const [limit, setLimit] = useState<number>(10);
+  const [page, setPage] = useState(1);
+  const [limit] = useState(10);
 
-  const schema = z.object({
-    driverId: z.string().min(1, 'El conductor es requerido'),
-    vehicleId: z.string().min(1, 'El vehículo es requerido'),
-    startDate: z.string().min(1, 'La fecha de inicio es requerida'),
-    endDate: z.string().min(1, 'La fecha de fin es requerida'),
-    rate: z.number().positive('La tarifa debe ser mayor a 0'),
-    rateType: z.enum(['daily', 'weekly', 'monthly']),
-    deposit: z.number().min(0),
-    statusId: z.string().optional(),
-    terms: z.string().optional(),
-    notes: z.string().optional()
-  });
+  // Schema preparado para uso futuro
+  // const schema = z.object({
+  //   driverId: z.string().min(1, 'Conductor es requerido'),
+  //   vehicleId: z.string().min(1, 'Vehículo es requerido'),
+  //   startDate: z.string().min(1, 'Fecha de inicio es requerida'),
+  //   endDate: z.string().min(1, 'Fecha de fin es requerida'),
+  //   rate: z.number().min(1, 'Tarifa debe ser mayor a 0'),
+  //   rateType: z.enum(['daily', 'weekly', 'monthly']),
+  //   deposit: z.number().min(0, 'Depósito no puede ser negativo')
+  // });
 
-  type FormValues = z.infer<typeof schema>;
+  // type FormValues = z.infer<typeof schema>;
 
-  const { register, handleSubmit, reset, formState: { errors, isSubmitting } } = useForm<FormValues>({
-    resolver: zodResolver(schema),
-    defaultValues: { driverId: '', vehicleId: '', startDate: '', endDate: '', rate: 0, rateType: 'daily', deposit: 0 }
-  });
+  // Form handling - estas variables están preparadas para uso futuro
+  // const { register, handleSubmit, reset, formState: { errors, isSubmitting } } = useForm<FormValues>({
+  //   resolver: zodResolver(schema),
+  //   defaultValues: { driverId: '', vehicleId: '', startDate: '', endDate: '', rate: 0, rateType: 'daily', deposit: 0 }
+  // });
 
   // Data fetching via React Query
   const fetchContracts = async ({ queryKey }: any) => {
-    const [_key, { page, limit, q }] = queryKey;
+    const [, { page, limit, q }] = queryKey;
     const params = new URLSearchParams();
     params.set('page', String(page));
     params.set('limit', String(limit));
@@ -123,46 +110,48 @@ export default function ContractManagement() {
     return res.json();
   };
 
-  const contractsQuery = useQuery(['contracts', { page, limit, q: searchTerm }], fetchContracts, { keepPreviousData: true });
+  // Queries - estas queries están preparadas para uso futuro
+  // const contractsQuery = useQuery(['contracts', { page, limit, q: searchTerm }], fetchContracts, { keepPreviousData: true });
 
-  const driversQuery = useQuery(['drivers'], async () => {
-    const res = await fetch('http://localhost:3001/api/drivers', { headers: getAuthHeaders() });
-    return res.json();
-  });
+  // const driversQuery = useQuery(['drivers'], async () => {
+  //   const res = await fetch('http://localhost:3001/api/drivers', { headers: getAuthHeaders() });
+  //   return res.json();
+  // });
 
-  const vehiclesQuery = useQuery(['vehicles'], async () => {
-    const res = await fetch('http://localhost:3001/api/vehicles', { headers: getAuthHeaders() });
-    return res.json();
-  });
+  // const vehiclesQuery = useQuery(['vehicles'], async () => {
+  //   const res = await fetch('http://localhost:3001/api/vehicles', { headers: getAuthHeaders() });
+  //   return res.json();
+  // });
 
-  // Mutations
-  const createOrUpdateMutation = useMutation(async (data: any) => {
-    const url = editingContract ? `http://localhost:3001/api/contracts/${editingContract.id}` : 'http://localhost:3001/api/contracts';
-    const method = editingContract ? 'PUT' : 'POST';
-    const res = await fetch(url, { method, headers: { 'Content-Type': 'application/json', ...getAuthHeaders() }, body: JSON.stringify(data) });
-    if (!res.ok) throw new Error('Error saving contract');
-    return res.json();
-  }, {
-    onSuccess: () => queryClient.invalidateQueries(['contracts'])
-  });
+  // Mutations - estas mutaciones están preparadas para uso futuro
+  // const createOrUpdateMutation = useMutation(async (data: ContractFormData) => {
+  //   const url = editingContract ? `http://localhost:3001/api/contracts/${editingContract.id}` : 'http://localhost:3001/api/contracts';
+  //   const method = editingContract ? 'PUT' : 'POST';
+  //   const res = await fetch(url, { method, headers: { 'Content-Type': 'application/json', ...getAuthHeaders() }, body: JSON.stringify(data) });
+  //   if (!res.ok) throw new Error('Error saving contract');
+  //   return res.json();
+  // }, {
+  //   onSuccess: () => queryClient.invalidateQueries(['contracts'])
+  // });
 
-  const deleteMutation = useMutation(async (id: string) => {
-    const res = await fetch(`http://localhost:3001/api/contracts/${id}`, { method: 'DELETE', headers: getAuthHeaders() });
-    if (!res.ok) throw new Error('Error deleting');
-    return res.json();
-  }, { onSuccess: () => queryClient.invalidateQueries(['contracts']) });
+  // const deleteMutation = useMutation(async (id: string) => {
+  //   const res = await fetch(`http://localhost:3001/api/contracts/${id}`, { method: 'DELETE', headers: getAuthHeaders() });
+  //   if (!res.ok) throw new Error('Error deleting');
+  //   return res.json();
+  // }, { onSuccess: () => queryClient.invalidateQueries(['contracts']) });
 
-  const onSubmit = async (values: FormValues) => {
-    try {
-      await createOrUpdateMutation.mutateAsync(values);
-      toast.success('Contrato guardado');
-      reset();
-      setShowForm(false);
-      setEditingContract(null);
-    } catch (err: any) {
-      toast.error(err.message || 'Error al guardar');
-    }
-  };
+  // const onSubmit = async (values: FormValues) => {
+  //   try {
+  //     await createOrUpdateMutation.mutateAsync(values);
+  //     toast.success('Contrato guardado');
+  //     reset();
+  //     setShowForm(false);
+  //     setEditingContract(null);
+  //   } catch (err: unknown) {
+  //     const errorMessage = err instanceof Error ? err.message : 'Error al guardar';
+  //     toast.error(errorMessage);
+  //   }
+  // };
 
   useEffect(() => { /* no-op: react-query handles fetches */ }, []);
   const triggerLoadData = (delay = 300) => {

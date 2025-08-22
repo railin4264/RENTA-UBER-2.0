@@ -10,7 +10,7 @@ export interface ValidationRule {
   min?: number;
   max?: number;
   pattern?: RegExp;
-  custom?: (value: any) => boolean;
+  custom?: (value: Record<string, string | number | boolean>) => boolean;
   message?: string;
 }
 
@@ -26,7 +26,7 @@ export interface ValidationResult {
   warnings: ValidationError[];
 }
 
-export const validateField = (value: any, rules: ValidationRule[]): ValidationResult => {
+export const validateField = (value: Record<string, string | number | boolean>, rules: ValidationRule[]): ValidationResult => {
   const errors: ValidationError[] = [];
   const warnings: ValidationError[] = [];
 
@@ -53,7 +53,7 @@ export const validateField = (value: any, rules: ValidationRule[]): ValidationRe
         });
       }
 
-      if (rule.type === 'email' && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(fieldValue)) {
+      if (rule.type === 'email' && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(fieldValue as string)) {
         errors.push({
           field: rule.field,
           message: rule.message || `${rule.field} debe ser un email válido`,
@@ -61,7 +61,7 @@ export const validateField = (value: any, rules: ValidationRule[]): ValidationRe
         });
       }
 
-      if (rule.type === 'date' && isNaN(Date.parse(fieldValue))) {
+      if (rule.type === 'date' && isNaN(Date.parse(fieldValue as string))) {
         errors.push({
           field: rule.field,
           message: rule.message || `${rule.field} debe ser una fecha válida`,
@@ -69,7 +69,7 @@ export const validateField = (value: any, rules: ValidationRule[]): ValidationRe
         });
       }
 
-      if (rule.type === 'phone' && !/^[\d\s\-\+\(\)]+$/.test(fieldValue)) {
+      if (rule.type === 'phone' && !/^[\d\s\-+()]+$/.test(fieldValue as string)) {
         errors.push({
           field: rule.field,
           message: rule.message || `${rule.field} debe ser un teléfono válido`,
@@ -77,7 +77,7 @@ export const validateField = (value: any, rules: ValidationRule[]): ValidationRe
         });
       }
 
-      if (rule.type === 'cedula' && !/^\d{11}$/.test(fieldValue)) {
+      if (rule.type === 'cedula' && !/^\d{11}$/.test(fieldValue as string)) {
         errors.push({
           field: rule.field,
           message: rule.message || `${rule.field} debe tener 11 dígitos`,
@@ -86,7 +86,7 @@ export const validateField = (value: any, rules: ValidationRule[]): ValidationRe
       }
 
       // Check length
-      if (rule.minLength && fieldValue.length < rule.minLength) {
+      if (rule.minLength && (fieldValue as string).length < rule.minLength) {
         errors.push({
           field: rule.field,
           message: rule.message || `${rule.field} debe tener al menos ${rule.minLength} caracteres`,
@@ -94,7 +94,7 @@ export const validateField = (value: any, rules: ValidationRule[]): ValidationRe
         });
       }
 
-      if (rule.maxLength && fieldValue.length > rule.maxLength) {
+      if (rule.maxLength && (fieldValue as string).length > rule.maxLength) {
         errors.push({
           field: rule.field,
           message: rule.message || `${rule.field} debe tener máximo ${rule.maxLength} caracteres`,
@@ -120,7 +120,7 @@ export const validateField = (value: any, rules: ValidationRule[]): ValidationRe
       }
 
       // Check pattern
-      if (rule.pattern && !rule.pattern.test(fieldValue)) {
+      if (rule.pattern && !rule.pattern.test(fieldValue as string)) {
         errors.push({
           field: rule.field,
           message: rule.message || `${rule.field} no tiene el formato correcto`,
@@ -129,7 +129,7 @@ export const validateField = (value: any, rules: ValidationRule[]): ValidationRe
       }
 
       // Custom validation
-      if (rule.custom && !rule.custom(fieldValue)) {
+      if (rule.custom && !rule.custom(value)) {
         errors.push({
           field: rule.field,
           message: rule.message || `${rule.field} no es válido`,

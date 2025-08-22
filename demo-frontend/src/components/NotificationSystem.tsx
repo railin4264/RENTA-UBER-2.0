@@ -5,8 +5,7 @@ import {
   CheckCircle, 
   AlertTriangle, 
   Info, 
-  Trash2,
-  Settings
+  Trash2
 } from 'lucide-react';
 
 interface Notification {
