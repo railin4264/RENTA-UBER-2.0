@@ -232,9 +232,13 @@ class ApiService {
     });
   }
 
+  /**
+   * Valida el token de acceso actual realizando una petición al backend.
+   * El endpoint del servidor es GET /api/auth/validate y requiere encabezado Authorization.
+   */
   async verifyToken(token: string) {
-    return this.request('/auth/verify', {
-      method: 'POST',
+    return this.request('/auth/validate', {
+      method: 'GET',
       headers: {
         'Authorization': `Bearer ${token}`,
       },
