@@ -1,0 +1,723 @@
+
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Documentación - Repara Mi Barrio</title>
+    <style>
+        @page {
+            size: A4;
+            margin: 2cm;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            max-width: 21cm;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        
+        h1 {
+            color: #27AE60;
+            border-bottom: 3px solid #27AE60;
+            padding-bottom: 10px;
+            page-break-before: always;
+            margin-top: 0;
+        }
+        
+        h1:first-of-type {
+            page-break-before: avoid;
+        }
+        
+        h2 {
+            color: #229954;
+            margin-top: 30px;
+            border-bottom: 1px solid #ddd;
+            padding-bottom: 5px;
+        }
+        
+        h3 {
+            color: #1e8449;
+            margin-top: 20px;
+        }
+        
+        .header {
+            text-align: center;
+            padding: 40px 0;
+            background: linear-gradient(135deg, #27AE60 0%, #52BE80 100%);
+            color: white;
+            margin: -20px -20px 40px -20px;
+            border-radius: 10px;
+        }
+        
+        .header h1 {
+            color: white;
+            border: none;
+            font-size: 2.5em;
+            margin: 0;
+        }
+        
+        .header p {
+            font-size: 1.2em;
+            margin: 10px 0;
+        }
+        
+        .toc {
+            background: #f8f9fa;
+            padding: 20px;
+            border-radius: 8px;
+            margin: 30px 0;
+            page-break-after: always;
+        }
+        
+        .toc h2 {
+            color: #27AE60;
+            margin-top: 0;
+        }
+        
+        .toc ul {
+            list-style: none;
+            padding-left: 0;
+        }
+        
+        .toc li {
+            padding: 5px 0;
+            border-bottom: 1px dotted #ddd;
+        }
+        
+        .toc li:last-child {
+            border-bottom: none;
+        }
+        
+        code {
+            background: #f4f4f4;
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-family: 'Courier New', monospace;
+            font-size: 0.9em;
+        }
+        
+        pre {
+            background: #f4f4f4;
+            padding: 15px;
+            border-radius: 5px;
+            overflow-x: auto;
+            border-left: 4px solid #27AE60;
+        }
+        
+        .feature-box {
+            background: #f0fdf4;
+            border: 1px solid #27AE60;
+            border-radius: 8px;
+            padding: 15px;
+            margin: 20px 0;
+        }
+        
+        .tech-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 15px;
+            margin: 20px 0;
+        }
+        
+        .tech-item {
+            background: white;
+            border: 1px solid #ddd;
+            padding: 10px;
+            border-radius: 5px;
+        }
+        
+        .section-divider {
+            text-align: center;
+            margin: 40px 0;
+            color: #999;
+        }
+        
+        ul, ol {
+            margin-left: 20px;
+        }
+        
+        li {
+            margin: 5px 0;
+        }
+        
+        .important {
+            background: #fff3cd;
+            border-left: 4px solid #ffc107;
+            padding: 10px;
+            margin: 20px 0;
+        }
+        
+        .footer {
+            text-align: center;
+            margin-top: 60px;
+            padding-top: 20px;
+            border-top: 2px solid #27AE60;
+            color: #666;
+        }
+        
+        @media print {
+            .header {
+                margin: 0;
+            }
+            
+            h1 {
+                page-break-before: always;
+            }
+            
+            h1:first-of-type {
+                page-break-before: avoid;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>REPARA MI BARRIO</h1>
+        <p>Documentación Completa del Proyecto</p>
+        <p>Versión 0.1.0 - Octubre 2025</p>
+    </div>
+
+    <div class="toc">
+        <h2>TABLA DE CONTENIDOS</h2>
+        <ul>
+            <li>1. Introducción</li>
+            <li>2. Descripción General del Proyecto</li>
+            <li>3. Características Principales</li>
+            <li>4. Arquitectura del Sistema</li>
+            <li>5. Tecnologías Utilizadas</li>
+            <li>6. Estructura de Archivos</li>
+            <li>7. Componentes del Sistema</li>
+            <li>8. Modelos de Datos</li>
+            <li>9. Flujo de Navegación</li>
+            <li>10. Pantallas de la Aplicación</li>
+            <li>11. Instalación y Configuración</li>
+            <li>12. Guía de Uso</li>
+            <li>13. Desarrollo y Personalización</li>
+            <li>14. Consideraciones Técnicas</li>
+            <li>15. Mejoras Futuras</li>
+        </ul>
+    </div>
+
+    <h1>1. INTRODUCCIÓN</h1>
+    
+    <p>"Repara mi Barrio" es una aplicación web prototipo diseñada para facilitar la comunicación entre los ciudadanos y las autoridades municipales. Permite a los usuarios reportar problemas de infraestructura y servicios públicos en su comunidad, realizar seguimiento del estado de sus reportes y contribuir activamente a la mejora de su barrio.</p>
+    
+    <p>Este documento proporciona una guía completa sobre la arquitectura, funcionalidades y uso del sistema.</p>
+
+    <h1>2. DESCRIPCIÓN GENERAL DEL PROYECTO</h1>
+    
+    <h3>Propósito:</h3>
+    <p>Facilitar la participación ciudadana en el mantenimiento y mejora de los espacios públicos mediante un sistema de reportes georreferenciados.</p>
+    
+    <h3>Alcance:</h3>
+    <ul>
+        <li>Registro y autenticación de usuarios</li>
+        <li>Creación de reportes con fotografías y ubicación</li>
+        <li>Visualización de reportes en un mapa interactivo</li>
+        <li>Seguimiento del estado de los reportes</li>
+        <li>Gestión de perfil de usuario</li>
+        <li>Sistema de notificaciones</li>
+        <li>Categorización de problemas por tipo</li>
+    </ul>
+    
+    <h3>Beneficios:</h3>
+    <ul>
+        <li>✓ Mejora la comunicación ciudadano-gobierno</li>
+        <li>✓ Permite respuesta rápida a problemas urbanos</li>
+        <li>✓ Transparencia en la gestión de reportes</li>
+        <li>✓ Participación ciudadana activa</li>
+        <li>✓ Geolocalización precisa de problemas</li>
+    </ul>
+
+    <h1>3. CARACTERÍSTICAS PRINCIPALES</h1>
+    
+    <div class="feature-box">
+        <h3>3.1 Sistema de Reportes</h3>
+        <ul>
+            <li>Creación de reportes con título, descripción y fotografía</li>
+            <li>Categorización por tipo de problema</li>
+            <li>Geolocalización automática o manual</li>
+            <li>Estado del reporte (Pendiente, En Proceso, Resuelto)</li>
+            <li>Línea de tiempo de seguimiento</li>
+        </ul>
+    </div>
+    
+    <div class="feature-box">
+        <h3>3.2 Mapa Interactivo</h3>
+        <ul>
+            <li>Visualización de todos los reportes en el mapa</li>
+            <li>Marcadores diferenciados por categoría y estado</li>
+            <li>Leyenda visual de categorías y estados</li>
+            <li>Controles de zoom y ubicación actual</li>
+            <li>Selección de reportes en el mapa</li>
+        </ul>
+    </div>
+    
+    <div class="feature-box">
+        <h3>3.3 Gestión de Usuario</h3>
+        <ul>
+            <li>Registro con email y contraseña</li>
+            <li>Inicio de sesión seguro</li>
+            <li>Perfil personalizable con avatar</li>
+            <li>Estadísticas de reportes del usuario</li>
+            <li>Historial de reportes propios</li>
+        </ul>
+    </div>
+    
+    <div class="feature-box">
+        <h3>3.4 Categorías de Reportes</h3>
+        <ul>
+            <li><strong>Baches</strong> - Infraestructura vial</li>
+            <li><strong>Basura</strong> - Gestión de residuos</li>
+            <li><strong>Alumbrado</strong> - Servicios de iluminación</li>
+            <li><strong>Agua</strong> - Fugas y servicios hídricos</li>
+            <li><strong>Seguridad</strong> - Problemas de seguridad ciudadana</li>
+        </ul>
+    </div>
+    
+    <div class="feature-box">
+        <h3>3.5 Sistema de Notificaciones</h3>
+        <ul>
+            <li>Alertas de cambio de estado en reportes</li>
+            <li>Notificaciones de resolución</li>
+            <li>Actualizaciones del sistema</li>
+        </ul>
+    </div>
+
+    <h1>4. ARQUITECTURA DEL SISTEMA</h1>
+    
+    <h3>Patrón de Diseño:</h3>
+    <p>Arquitectura de aplicación de página única (SPA - Single Page Application) con gestión de estado mediante React Hooks.</p>
+    
+    <h3>Capas del Sistema:</h3>
+    <pre>
+┌─────────────────────────────────────┐
+│      CAPA DE PRESENTACIÓN           │
+│   (Componentes React + UI)          │
+├─────────────────────────────────────┤
+│      CAPA DE LÓGICA                 │
+│   (Estado, Navegación, Hooks)       │
+├─────────────────────────────────────┤
+│      CAPA DE DATOS                  │
+│   (Modelos, Mock Data)              │
+└─────────────────────────────────────┘
+    </pre>
+    
+    <h3>Flujo de Datos:</h3>
+    <p>Usuario → Componentes → Estado Local → Actualización de UI</p>
+
+    <h1>5. TECNOLOGÍAS UTILIZADAS</h1>
+    
+    <div class="tech-grid">
+        <div class="tech-item">
+            <h3>Frontend:</h3>
+            <ul>
+                <li>React 18.3.1</li>
+                <li>TypeScript</li>
+                <li>Vite 6.3.5</li>
+                <li>React DOM 18.3.1</li>
+            </ul>
+        </div>
+        
+        <div class="tech-item">
+            <h3>Librerías de UI:</h3>
+            <ul>
+                <li>Radix UI</li>
+                <li>Lucide React 0.487.0</li>
+                <li>Tailwind CSS</li>
+                <li>Class Variance Authority</li>
+            </ul>
+        </div>
+        
+        <div class="tech-item">
+            <h3>Componentes Especializados:</h3>
+            <ul>
+                <li>Sonner 2.0.3</li>
+                <li>React Hook Form 7.55.0</li>
+                <li>React Day Picker 8.10.1</li>
+                <li>Recharts 2.15.2</li>
+            </ul>
+        </div>
+        
+        <div class="tech-item">
+            <h3>Herramientas de Desarrollo:</h3>
+            <ul>
+                <li>@vitejs/plugin-react-swc</li>
+                <li>@types/node</li>
+                <li>TypeScript compiler</li>
+            </ul>
+        </div>
+    </div>
+
+    <h1>6. ESTRUCTURA DE ARCHIVOS</h1>
+    
+    <pre>
+Repara mi Barrio Prototipo/
+│
+├── index.html                    # Punto de entrada HTML
+├── package.json                  # Dependencias y scripts
+├── vite.config.ts               # Configuración de Vite
+├── README.md                     # Documentación básica
+├── DOCUMENTACION.txt            # Esta documentación
+│
+└── src/                          # Código fuente
+    ├── main.tsx                  # Punto de entrada de React
+    ├── App.tsx                   # Componente principal
+    ├── index.css                 # Estilos globales
+    │
+    ├── components/               # Componentes React
+    │   ├── ui/                   # Componentes UI reutilizables
+    │   ├── figma/                # Componentes de integración
+    │   └── [Pantallas].tsx       # Componentes de pantalla
+    │
+    ├── lib/                       # Lógica y utilidades
+    │   └── data.ts                # Modelos y datos mock
+    │
+    └── styles/                    # Estilos adicionales
+    </pre>
+
+    <h1>7. COMPONENTES DEL SISTEMA</h1>
+    
+    <h2>7.1 Componente Principal (App.tsx)</h2>
+    <p><strong>Responsabilidades:</strong></p>
+    <ul>
+        <li>Gestión del estado global de navegación</li>
+        <li>Control del flujo entre pantallas</li>
+        <li>Manejo del historial de navegación</li>
+        <li>Gestión del tab activo en navegación inferior</li>
+    </ul>
+    
+    <p><strong>Estados Principales:</strong></p>
+    <ul>
+        <li><code>currentScreen</code>: Pantalla actual mostrada</li>
+        <li><code>activeTab</code>: Tab activo en la navegación principal</li>
+        <li><code>selectedReport</code>: Reporte seleccionado para ver detalle</li>
+        <li><code>navigationHistory</code>: Historial de navegación para el botón atrás</li>
+    </ul>
+    
+    <h2>7.2 Pantallas de Autenticación</h2>
+    
+    <h3>WelcomeScreen:</h3>
+    <ul>
+        <li>Pantalla inicial con logo y opciones</li>
+        <li>Navegación a Login o Registro</li>
+        <li>Diseño atractivo con gradiente e imagen</li>
+    </ul>
+    
+    <h3>LoginScreen:</h3>
+    <ul>
+        <li>Formulario de inicio de sesión</li>
+        <li>Campos: email y contraseña</li>
+        <li>Opción de recuperar contraseña</li>
+        <li>Enlace a registro</li>
+    </ul>
+    
+    <h3>RegisterScreen:</h3>
+    <ul>
+        <li>Formulario de registro de nuevo usuario</li>
+        <li>Campos: nombre, email, contraseña, confirmación</li>
+        <li>Validación de datos</li>
+        <li>Términos y condiciones</li>
+    </ul>
+
+    <h1>8. MODELOS DE DATOS</h1>
+    
+    <h2>8.1 Report (Reporte)</h2>
+    <pre>
+interface Report {
+  id: string;                    // Identificador único
+  title: string;                 // Título del reporte
+  description: string;           // Descripción detallada
+  category: CategoryType;        // Categoría del problema
+  status: StatusType;            // Estado actual
+  location: {                    // Información de ubicación
+    lat: number;                 // Latitud
+    lng: number;                 // Longitud
+    address: string;             // Dirección legible
+  };
+  date: string;                  // Fecha de creación
+  imageUrl?: string;             // URL de la imagen (opcional)
+  user: {                        // Información del usuario
+    name: string;                // Nombre del usuario
+    avatar?: string;             // Avatar (opcional)
+  };
+  timeline?: Array<{             // Línea de tiempo (opcional)
+    status: string;              // Estado en ese momento
+    date: string;                // Fecha del cambio
+    description: string;         // Descripción del cambio
+  }>;
+}
+    </pre>
+    
+    <h2>8.2 Tipos de Categoría</h2>
+    <pre>
+type CategoryType =
+  | 'baches'      // Problemas de pavimento
+  | 'basura'      // Gestión de residuos
+  | 'alumbrado'   // Iluminación pública
+  | 'agua'        // Servicios hídricos
+  | 'seguridad'   // Seguridad ciudadana
+    </pre>
+    
+    <h2>8.3 Tipos de Estado</h2>
+    <pre>
+type StatusType =
+  | 'pendiente'    // Recién reportado
+  | 'en-proceso'   // En atención
+  | 'resuelto'     // Completado
+    </pre>
+
+    <h1>9. FLUJO DE NAVEGACIÓN</h1>
+    
+    <h2>9.1 Flujo de Autenticación</h2>
+    <pre>
+[Bienvenida]
+    ↓
+    ├─→ [Login] → [Pantalla Principal]
+    │       ↑
+    │       └─ [Recuperar Contraseña]
+    │
+    └─→ [Registro] → [Pantalla Principal]
+    </pre>
+    
+    <h2>9.2 Flujo Principal de la App</h2>
+    <pre>
+[Pantalla Principal]
+    │
+    ├─ Tab Mapa
+    │   ├─→ [Ver Reporte en Mapa] → [Detalle]
+    │   └─→ [Crear Nuevo Reporte] → [Formulario]
+    │
+    ├─ Tab Reportes
+    │   └─→ [Lista de Reportes] → [Detalle]
+    │
+    └─ Tab Perfil
+        ├─→ [Mis Reportes]
+        ├─→ [Editar Perfil]
+        ├─→ [Notificaciones]
+        └─→ [Configuración]
+    </pre>
+
+    <h1>10. PANTALLAS DE LA APLICACIÓN</h1>
+    
+    <p>El sistema cuenta con más de 14 pantallas diferentes, cada una diseñada para cumplir una función específica en el flujo de la aplicación.</p>
+    
+    <h2>Pantallas Principales:</h2>
+    <ul>
+        <li><strong>Pantalla de Bienvenida</strong> - Punto de entrada con opciones de login/registro</li>
+        <li><strong>Pantalla de Login</strong> - Autenticación de usuarios existentes</li>
+        <li><strong>Pantalla de Registro</strong> - Creación de nuevas cuentas</li>
+        <li><strong>Pantalla del Mapa</strong> - Vista principal con reportes georreferenciados</li>
+        <li><strong>Pantalla de Crear Reporte</strong> - Formulario completo para nuevos reportes</li>
+        <li><strong>Pantalla de Lista de Reportes</strong> - Vista de todos los reportes con filtros</li>
+        <li><strong>Pantalla de Detalle de Reporte</strong> - Información completa de un reporte</li>
+        <li><strong>Pantalla de Perfil</strong> - Gestión de cuenta de usuario</li>
+        <li><strong>Pantalla de Mis Reportes</strong> - Reportes creados por el usuario</li>
+        <li><strong>Pantalla de Editar Perfil</strong> - Actualización de datos personales</li>
+        <li><strong>Pantalla de Notificaciones</strong> - Centro de notificaciones</li>
+        <li><strong>Pantalla de Configuración</strong> - Preferencias de la aplicación</li>
+        <li><strong>Pantalla de Soporte</strong> - FAQ y contacto</li>
+        <li><strong>Pantalla de Acerca de</strong> - Información de la aplicación</li>
+    </ul>
+
+    <h1>11. INSTALACIÓN Y CONFIGURACIÓN</h1>
+    
+    <h2>11.1 Requisitos Previos</h2>
+    <ul>
+        <li>Node.js versión 20.x o superior</li>
+        <li>npm (incluido con Node.js) o yarn</li>
+        <li>Navegador web moderno</li>
+        <li>Editor de código (recomendado: VS Code)</li>
+    </ul>
+    
+    <h2>11.2 Instalación Paso a Paso</h2>
+    
+    <div class="important">
+        <h3>Paso 1: Clonar o Descargar el Proyecto</h3>
+        <pre>
+$ git clone [URL_DEL_REPOSITORIO]
+$ cd "Repara mi Barrio Prototipo"
+        </pre>
+    </div>
+    
+    <div class="important">
+        <h3>Paso 2: Instalar Dependencias</h3>
+        <pre>
+$ npm install
+        </pre>
+        <p>Tiempo estimado: 2-5 minutos</p>
+    </div>
+    
+    <div class="important">
+        <h3>Paso 3: Iniciar el Servidor de Desarrollo</h3>
+        <pre>
+$ npm run dev
+        </pre>
+        <p>La aplicación estará disponible en: <code>http://localhost:5173</code></p>
+    </div>
+    
+    <h2>11.3 Construcción para Producción</h2>
+    <pre>
+$ npm run build
+    </pre>
+    <p>Esto creará una carpeta 'dist' con los archivos optimizados.</p>
+
+    <h1>12. GUÍA DE USO</h1>
+    
+    <h2>12.1 Para Usuarios Finales</h2>
+    
+    <h3>Primer Uso:</h3>
+    <ol>
+        <li>Abrir la aplicación</li>
+        <li>En pantalla de bienvenida, seleccionar "Registrarse"</li>
+        <li>Completar formulario con datos personales</li>
+        <li>Aceptar términos y condiciones</li>
+        <li>Click en "Registrarse"</li>
+        <li>Acceder a la pantalla principal</li>
+    </ol>
+    
+    <h3>Crear un Reporte:</h3>
+    <ol>
+        <li>Click en botón "+" (verde)</li>
+        <li>Tomar foto o seleccionar de galería</li>
+        <li>Escribir título descriptivo</li>
+        <li>Escribir descripción detallada</li>
+        <li>Seleccionar categoría</li>
+        <li>Confirmar ubicación</li>
+        <li>Click en "Enviar Reporte"</li>
+        <li>Ver confirmación</li>
+    </ol>
+
+    <h1>13. DESARROLLO Y PERSONALIZACIÓN</h1>
+    
+    <h2>13.1 Crear un Nuevo Componente</h2>
+    <pre>
+import { ArrowLeft } from "lucide-react";
+import { Button } from "./ui/button";
+
+interface MiComponenteProps {
+  onNavigate: (screen: string) => void;
+}
+
+export function MiComponente({ onNavigate }: MiComponenteProps) {
+  return (
+    &lt;div className="min-h-screen bg-white"&gt;
+      &lt;div className="sticky top-0 bg-white border-b px-4 py-4"&gt;
+        &lt;button onClick={() => onNavigate('back')}&gt;
+          &lt;ArrowLeft className="w-6 h-6" /&gt;
+        &lt;/button&gt;
+        &lt;h2&gt;Título&lt;/h2&gt;
+      &lt;/div&gt;
+      &lt;div className="px-4 py-6"&gt;
+        {/* Contenido */}
+      &lt;/div&gt;
+    &lt;/div&gt;
+  );
+}
+    </pre>
+    
+    <h2>13.2 Personalizar Colores</h2>
+    <p>El color principal verde (#27AE60) se puede cambiar buscando y reemplazando todas las referencias en el código.</p>
+    
+    <h2>13.3 Agregar Nueva Categoría</h2>
+    <ol>
+        <li>Abrir <code>src/lib/data.ts</code></li>
+        <li>Agregar tipo en <code>CategoryType</code></li>
+        <li>Agregar configuración en array <code>categories</code></li>
+        <li>Los cambios se reflejan automáticamente</li>
+    </ol>
+
+    <h1>14. CONSIDERACIONES TÉCNICAS</h1>
+    
+    <h2>14.1 Rendimiento</h2>
+    <ul>
+        <li>React 18 con Concurrent Features</li>
+        <li>Vite para bundling rápido</li>
+        <li>SWC para compilación veloz</li>
+        <li>Code splitting automático</li>
+    </ul>
+    
+    <h2>14.2 Seguridad</h2>
+    <ul>
+        <li>Validación de entrada en cliente Y servidor</li>
+        <li>Sanitización de datos de usuario</li>
+        <li>Protección contra XSS</li>
+        <li>HTTPS obligatorio en producción</li>
+        <li>Autenticación con JWT</li>
+    </ul>
+    
+    <h2>14.3 Accesibilidad (a11y)</h2>
+    <ul>
+        <li>Componentes Radix UI accesibles por defecto</li>
+        <li>Soporte de teclado completo</li>
+        <li>ARIA labels apropiados</li>
+        <li>Contraste de colores WCAG AA</li>
+    </ul>
+    
+    <h2>14.4 Responsive Design</h2>
+    <ul>
+        <li>Mobile: &lt; 768px</li>
+        <li>Tablet: 768px - 1024px</li>
+        <li>Desktop: &gt; 1024px</li>
+    </ul>
+
+    <h1>15. MEJORAS FUTURAS</h1>
+    
+    <h2>Corto Plazo:</h2>
+    <ul>
+        <li>Autenticación real con JWT</li>
+        <li>Integración con mapa real (Google Maps/Mapbox)</li>
+        <li>Upload real de imágenes</li>
+        <li>Notificaciones push</li>
+        <li>Comentarios en reportes</li>
+        <li>Sistema de votación</li>
+    </ul>
+    
+    <h2>Mediano Plazo:</h2>
+    <ul>
+        <li>Dashboard de administración</li>
+        <li>Analytics avanzados</li>
+        <li>Detección de reportes duplicados</li>
+        <li>Geofencing para alertas</li>
+        <li>Chat en vivo con autoridades</li>
+        <li>Gamificación</li>
+    </ul>
+    
+    <h2>Largo Plazo:</h2>
+    <ul>
+        <li>Inteligencia artificial para clasificación</li>
+        <li>Integración con sistemas municipales</li>
+        <li>API pública</li>
+        <li>App móvil nativa</li>
+        <li>Blockchain para transparencia</li>
+        <li>Realidad aumentada</li>
+    </ul>
+
+    <div class="section-divider">
+        <p>═══════════════════════════════════════</p>
+    </div>
+
+    <h1>CONCLUSIÓN</h1>
+    
+    <p>"Repara mi Barrio" es una plataforma innovadora que facilita la participación ciudadana en el mantenimiento urbano. Este prototipo demuestra las funcionalidades core del sistema y sirve como base para el desarrollo de una aplicación completa y funcional.</p>
+    
+    <p>La arquitectura modular y el uso de tecnologías modernas permiten una fácil extensión y personalización del sistema según las necesidades específicas de cada municipio o comunidad.</p>
+
+    <div class="footer">
+        <h2>CONTACTO Y SOPORTE</h2>
+        <p>Email: soporte@reparamibarrio.com</p>
+        <p>GitHub: github.com/reparamibarrio/proyecto</p>
+        <p>Web: www.reparamibarrio.com</p>
+        <br>
+        <p><strong>Versión del Documento:</strong> 1.0</p>
+        <p><strong>Fecha:</strong> Octubre 2025</p>
+        <p><strong>Última Actualización:</strong> 01/10/2025</p>
+        <br>
+        <p>© 2025 Repara mi Barrio - Licencia MIT</p>
+    </div>
+</body>
+</html>
